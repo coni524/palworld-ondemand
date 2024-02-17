@@ -200,6 +200,7 @@ password: worldofpal
 
 - The system automatically stops when there is no connection from a client for 10 minutes immediately after startup.
 - After a client connection, the system automatically stops when it detects no connected users for 20 minutes.
+- Every 6 hours you will receive a notification in Slack of your current month's AWS usage total.
 
 ## Background
 

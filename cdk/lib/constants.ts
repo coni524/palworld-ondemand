@@ -8,5 +8,6 @@ export const constants = {
   HOSTED_ZONE_SSM_PARAMETER: 'PalworldHostedZoneID',
   LAUNCHER_LAMBDA_ROLE_ARN_SSM_PARAMETER: 'LauncherLambdaRoleArn',
   LAUNCHER_LAMBDA_ARN_SSM_PARAMETER: 'LauncherLambdaArn',
+  BILLING_ALERT_SNS_TOPIC_SSM_PARAMETER: 'BillingAlertSNSTopicArn',
   PALWORLD_DOCKER_IMAGE: 'thijsvanloef/palworld-server-docker',
 }

@@ -3,6 +3,7 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { PalworldStack } from '../lib/palworld-stack';
 import { DomainStack } from '../lib/domain-stack';
+import { BillingAlertStack } from '../lib/billingalert-stack';
 import { constants } from '../lib/constants';
 import { resolveConfig } from '../lib/config';
 
@@ -28,6 +29,19 @@ const domainStack = new DomainStack(app, 'palworld-domain-stack', {
   config,
 });
 
+const billingAlertStack = new BillingAlertStack(app, 'billing-alert-stack', {
+  env: {
+    /**
+     * To access Billing information, Must reside in the Virginia (us-east-1) region.
+     */
+    region: constants.DOMAIN_STACK_REGION,    /* Account must be specified to allow for VPC lookup */
+    account: process.env.CDK_DEFAULT_ACCOUNT,
+  },
+  config,
+});
+
+billingAlertStack.addDependency(domainStack);
+
 const palworldStack = new PalworldStack(app, 'palworld-server-stack', {
   env: {
     region: config.serverRegion,
@@ -38,3 +52,4 @@ const palworldStack = new PalworldStack(app, 'palworld-server-stack', {
 });
 
 palworldStack.addDependency(domainStack);
+palworldStack.addDependency(billingAlertStack);

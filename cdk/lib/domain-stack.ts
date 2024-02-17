@@ -110,7 +110,7 @@ export class DomainStack extends Stack {
     aRecord.node.addDependency(subdomainHostedZone);
 
     const launcherLambda = new lambda.Function(this, 'LauncherLambda', {
-      code: lambda.Code.fromAsset(path.resolve(__dirname, '../../lambda')),
+      code: lambda.Code.fromAsset(path.resolve(__dirname, '../../lambda/ecs_service_manager')),
       handler: 'lambda_function.lambda_handler',
       runtime: lambda.Runtime.PYTHON_3_11,
       environment: {

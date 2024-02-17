@@ -159,6 +159,14 @@ export interface StackConfig {
   slack: SlackConfig;
   palworld: PalworldConfig;
   /**
+   * Setting Billin Alert Interval
+   * 
+   * Hourly billing alert interval
+   */
+  billingAlert: boolean;
+  billingAlertInterval: number;
+
+  /**
    * Setting to `true` enables debug mode.
    *
    * This will enable the following:

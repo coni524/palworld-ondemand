@@ -216,7 +216,7 @@ export class PalworldStack extends Stack {
       }
     ).getParameterValue();
 
-
+    // Import ARN of ECS Task Role created in previous stack
     const launcherLambdaArn = new SSMParameterReader(
       this,
       'launcherLambdaArn',
@@ -231,16 +231,31 @@ export class PalworldStack extends Stack {
       launcherLambdaArn
     );
 
-    // IAMロールの作成
+    // Create a role for Chatbot
     const chatbotRole = new iam.Role(this, 'ChatbotRole', {
       assumedBy: new iam.ServicePrincipal('chatbot.amazonaws.com'),
     });
 
-    // Lambda関数への実行権限を付与するポリシーステートメントを追加
+    // Add permissions to Chatbot role
     chatbotRole.addToPolicy(new iam.PolicyStatement({
       actions: ['lambda:InvokeFunction'],
       resources: [launcherLambdaArn],
     }));
+
+    // Import ARN of SNS Topic created in previous stack
+    const biliingAlertSnsTopicArn = new SSMParameterReader(
+      this,
+      'biliingAlertSnsTopic',
+      {
+        parameterName: constants.BILLING_ALERT_SNS_TOPIC_SSM_PARAMETER,
+        region: constants.DOMAIN_STACK_REGION,
+      }
+    ).getParameterValue();
+    const biliingAlertSnsTopic = sns.Topic.fromTopicArn(
+      this,
+      'ImportedBillingAlertsTopic',
+      biliingAlertSnsTopicArn
+    );
 
     let snsTopicArn = '';
     // Add Slack Channel Configuration
@@ -261,6 +276,7 @@ export class PalworldStack extends Stack {
 
     // Set up the SNS Topic as the notification topic for the Slack Channel
     slackChannel.addNotificationTopic(snsTopic);
+    slackChannel.addNotificationTopic(biliingAlertSnsTopic);
 
     // Set the SNS Topic ARN
     snsTopicArn = snsTopic.topicArn;
