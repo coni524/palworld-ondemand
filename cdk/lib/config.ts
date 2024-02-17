@@ -31,5 +31,7 @@ export const resolveConfig = (): StackConfig => ({
     adminPassword: process.env.ADMIN_PASSWORD || 'worldofpaladmin',
     serverPassword: process.env.SERVER_PASSWORD || 'worldofpal',
   },
+  billingAlertInterval: +(process.env.BILLING_ALERT_INTERVAL || 6),
+  billingAlert: stringAsBoolean(process.env.BILLING_ALERT) || false,
   debug: stringAsBoolean(process.env.DEBUG) || false,
 });
