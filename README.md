@@ -95,6 +95,15 @@ This project is inspired by and forked from the minecraft-ondemand project creat
 
 ## Cost Breakdown
 
+If USE_FARGATE_SPOT is set to true, Fargate Spot will boot on the X86_64 architecture.
+
+If USE_FARGATE_SPOT is false, Fargate will boot on the regular ARM64 architecture.
+
+This can result in cost savings of up to 70% when using SPOT Fargate and up to 20% using ARM64 compared to X86_64 when using regular Fargate.
+
+Note: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-capacity-providers.html
+
+
 - Link to [AWS Estimate] assuming 20 hours a month usage.
 
 - tl;dr:
