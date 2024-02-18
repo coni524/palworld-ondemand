@@ -94,6 +94,19 @@ export class PalworldStack extends Stack {
       enableFargateCapacityProviders: true,
     });
 
+    // Select CPU Architecture 
+    let cpuArchitecture: ecs.CpuArchitecture;
+    let capacityProvider: string;
+
+    if (config.useFargateSpot) {
+      cpuArchitecture = ecs.CpuArchitecture.X86_64; // AMD64 with Spot Fargate
+      capacityProvider = 'FARGATE_SPOT';
+    } else {
+      cpuArchitecture = ecs.CpuArchitecture.ARM64;  // ARM64 with Standard Fargate
+      capacityProvider = 'FARGATE';
+    }
+
+
     const taskDefinition = new ecs.FargateTaskDefinition(
       this,
       'TaskDefinition',
@@ -114,6 +127,9 @@ export class PalworldStack extends Stack {
             },
           },
         ],
+        runtimePlatform: {
+          cpuArchitecture: cpuArchitecture,
+        },
       }
     );
 
