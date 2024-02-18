@@ -47,6 +47,13 @@
 ![基本的なワークフロー](docs/diagrams/aws_architecture.drawio.png)
 
 ## コスト内訳
+USE_FARGATE_SPOTをtrueに設定すると、Fargate SpotはX86_64アーキテクチャで起動します。
+
+USE_FARGATE_SPOTがfalseの場合、Fargateは通常のARM64アーキテクチャでブートします。
+
+これにより、SPOT Fargateを使用する場合は最大70%、ARM64を使用する場合は通常のFargateを使用するX86_64と比較して最大20%のコスト削減が可能です。
+
+ノート：https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/fargate-capacity-providers.html
 
 - 月20時間の利用を想定した価格想定 [AWS Estimate]
 - DNS ゾーンは月額 $0.50、Fargate の使用料は 1 時間あたり $0.29072（4vCPU、16GB メモリ）。その他のコストは少なく済みます。
@@ -150,6 +157,7 @@ password: worldofpal
 
 - 起動直後から10分間クライアントからの接続がない場合、システムは自動的に停止します。
 - クライアントからの接続後、20分間接続ユーザがいないことを検知すると自動的に停止します。
+- 6時間ごとに当月のAWS使用量の合計がSlackに通知されます。
 
 # その他
 
