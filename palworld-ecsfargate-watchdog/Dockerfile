@@ -1,7 +1,6 @@
 # version 1.2.0
 
-# Specify the base image
-FROM --platform=linux/amd64 public.ecr.aws/aws-se/amazon-ecs-network-sidecar:latest
+FROM public.ecr.aws/amazonlinux/amazonlinux:latest
 
 # Set environment variables for Go installation
 ENV GO_VERSION=1.22.0
@@ -17,22 +16,18 @@ ENV RCONPORT=25575
 WORKDIR /app
 
 # Install required packages
-RUN yum install -y net-tools jq nmap-ncat && \
+RUN yum install -y net-tools jq nmap-ncat go tar aws-cli && \
     yum clean all
 
-# Install Go
-RUN wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
-    rm go${GO_VERSION}.linux-amd64.tar.gz && \
-    mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 777 "$GOPATH"
-
 # Install the RCON package
-RUN wget "https://github.com/gorcon/rcon-cli/releases/download/v${RCON_VERSION}/rcon-${RCON_VERSION}-amd64_linux.tar.gz" -O /tmp/rcon.tar.gz && \
-    tar -xzf /tmp/rcon.tar.gz -C /tmp && \
-    mv "/tmp/rcon-${RCON_VERSION}-amd64_linux/rcon" /usr/local/bin/rcon && \
-    chmod +x /usr/local/bin/rcon && \
-    rm -rf /tmp/rcon.tar.gz && \
-    rm -rf "/tmp/rcon-${RCON_VERSION}-amd64_linux"
+RUN curl -sL https://github.com/gorcon/rcon-cli/archive/refs/tags/v${RCON_VERSION}.tar.gz -o rcon.tar.gz \
+    && tar -xzvf rcon.tar.gz \
+    && rm rcon.tar.gz \
+    && mv rcon-cli-${RCON_VERSION}/* ./ \
+    && rm -rf rcon-cli-${RCON_VERSION} \
+    && go build -v -o rcon ./cmd/gorcon \
+    && chmod +x rcon \
+    && mv rcon /usr/local/bin/
 
 # Copy the `watchdog.sh` script to the container and make it executable
 COPY ./watchdog.sh .
