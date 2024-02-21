@@ -13,10 +13,6 @@ On-demand Palworld Dedicated Server in AWS
 
 [日本語版](./README-ja.md)
 
-Acknowledgments:
-
-This project is inspired by and forked from the minecraft-ondemand project created by @doctorray117. We express our heartfelt gratitude for the foundational work and the innovative idea behind running game servers on-demand in the cloud. Special thanks to the original author for their contribution to the community and for making the initial project open-source.
-
 ## Table of Contents
 
 - [palworld-ondemand](#palworld-ondemand)

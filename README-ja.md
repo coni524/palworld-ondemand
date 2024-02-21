@@ -11,10 +11,6 @@
 
 オンデマンドの Palworld Dedicated Server （詳細省略版）
 
-謝辞:
-
-このプロジェクトは @doctorray117 によって作成された minecraft-ondemand プロジェクトにインスパイアされ、フォークとして作成しました。クラウドでオンデマンドに AWS Fargate を利用したゲームサーバーを動作させるという革新的なアイデアとその実装について、プロジェクトをオープンソースにして頂いた原作者と貢献者の方々に感謝いたします。
-
 ## 目次
 
 - [palworld-ondemand](#palworld-ondemand)
