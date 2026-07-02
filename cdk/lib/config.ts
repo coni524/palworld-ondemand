@@ -11,7 +11,6 @@ export const resolveConfig = (): StackConfig => ({
   serverRegion: process.env.SERVER_REGION || 'us-east-1',
   shutdownMinutes: process.env.SHUTDOWN_MINUTES || '20',
   startupMinutes: process.env.STARTUP_MINUTES || '10',
-  useFargateSpot: stringAsBoolean(process.env.USE_FARGATE_SPOT) || false,
   taskCpu: +(process.env.TASK_CPU || 1024),
   taskMemory: +(process.env.TASK_MEMORY || 2048),
   vpcId: process.env.VPC_ID || '',

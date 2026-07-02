@@ -97,20 +97,6 @@ export interface StackConfig {
    */
   shutdownMinutes: string;
   /**
-   * Sets the preference for Fargate Spot.
-   *
-   * If you leave it 'false', your tasks will launch under the FARGATE strategy
-   * which currently will run about 5 cents per hour. You can switch it to true
-   * to enable FARGATE_SPOT, and pay 1.5 cents per hour. While this is cheaper,
-   * technically AWS can terminate your instance at any time if they need the
-   * capacity. The watchdog is designed to intercept this termination command
-   * and shut down safely, so it's fine to use Spot to save a few pennies, at
-   * the extremely low risk of game interruption.
-   *
-   * @default false
-   */
-  useFargateSpot: boolean;
-  /**
    * The number of cpu units used by the task running the Minecraft server.
    *
    * Valid values, which determines your range of valid values for the memory parameter:
