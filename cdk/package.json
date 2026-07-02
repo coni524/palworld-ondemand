@@ -1,27 +1,30 @@
 {
   "name": "palworld-ondemand",
   "version": "1.0.0",
+  "packageManager": "pnpm@10.33.0",
   "bin": {
     "cdk": "bin/cdk.js"
   },
   "scripts": {
-    "prebuild": "npm ci",
-    "build": "npx aws-cdk bootstrap",
-    "deploy": "npx aws-cdk deploy --all",
-    "destroy": "npx aws-cdk destroy --all",
-    "typecheck": "tsc --noEmit --watch",
-    "diff": "npx aws-cdk diff"
+    "bootstrap": "cdk bootstrap",
+    "build": "cdk bootstrap",
+    "deploy": "cdk deploy --all",
+    "destroy": "cdk destroy --all",
+    "synth": "cdk synth --all",
+    "diff": "cdk diff",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.12",
-    "@types/node": "20.11.17",
-    "dotenv": "^16.4.3",
+    "@types/node": "^24.10.9",
+    "aws-cdk": "^2.1128.1",
+    "dotenv": "^17.4.2",
     "ts-node": "^10.9.2",
-    "typescript": "~5.3.3"
+    "typescript": "~5.9.3"
   },
   "dependencies": {
-    "aws-cdk-lib": "^2.127.0",
-    "constructs": "^10.3.0",
+    "aws-cdk-lib": "^2.260.0",
+    "constructs": "^10.6.0",
     "source-map-support": "^0.5.21"
   }
 }
