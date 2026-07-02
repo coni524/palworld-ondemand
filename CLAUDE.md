@@ -39,7 +39,7 @@ A single CDK stack, **`palworld-server-stack`** (`cdk/bin/cdk.ts` → `palworld-
 - **Network/storage/compute:** VPC (created unless `VPC_ID` is set), EFS with access point mounted at `/palworld/Pal/Saved`, Fargate cluster/service with two containers (the game server `thijsvanloef/palworld-server-docker` marked non-essential, and the watchdog marked essential so its exit stops the task).
 - **Discord interactions Lambda** (`discord-interactions.ts` construct, code in `lambda/discord_interactions/`, Python, fixed name `palworld-discord-interactions`) with a public Function URL (exported as the `DiscordInteractionsEndpointUrl` output). It verifies the Ed25519 signature with `discord-interactions` (bundled at synth time via pip), checks the payload's `guild_id`, returns a deferred response within Discord's 3-second limit, then invokes itself asynchronously to set `desiredCount: 1` and post the follow-up message. The ECS service-control policy is attached to both the ECS task role and this Lambda's role.
 - **Notifications:** one SNS topic shared by the watchdog (startup/shutdown) and the billing report. A `DiscordNotificationForwarder` construct (`discord-notification-forwarder.ts`, code in `lambda/discord_notification/`) subscribes to it and POSTs the plain-text message to a Discord channel webhook. The webhook URL is read at runtime from the SSM SecureString `/palworld/discord/webhook-url` in the same region, which must be created manually (CloudFormation can't create SecureStrings).
-- **Billing report** (`billing-alert.ts` construct, code in `lambda/billing_report/`): Lambda on an EventBridge schedule publishes the month-to-date cost to the shared topic. The Cost Explorer API is a global service behind a us-east-1 endpoint that the SDK resolves from any region, so it works in `SERVER_REGION`.
+- **Billing report** (`billing-alert.ts` construct, code in `lambda/billing_report/`, only created when `BILLING_ALERT=true`): Lambda on an EventBridge schedule publishes the month-to-date cost to the shared topic. The Cost Explorer API is a global service behind a us-east-1 endpoint that the SDK resolves from any region, so it works in `SERVER_REGION`.
 
 The cluster/service/container names live in `constants.ts` — the watchdog and the Discord Lambda locate the ECS service by these names, so they must stay in sync.
 
@@ -49,4 +49,4 @@ The cluster/service/container names live in `constants.ts` — the watchdog and 
 
 **Configuration** flows from `cdk/.env` through `config.ts` (`resolveConfig()`; real environment variables take precedence over `.env`). All options are documented in `cdk/README.md`, including the valid Fargate CPU/memory combinations.
 
-**Debug logging:** container logs (game server and watchdog) are only sent to CloudWatch when `DEBUG=true` in `.env`.
+**Debug logging:** container logs (game server and watchdog) and Container Insights on the cluster are only enabled when `DEBUG=true` in `.env`.

@@ -52,7 +52,6 @@ export class BillingAlert extends Construct {
       schedule: events.Schedule.rate(
         Duration.hours(config.billingAlertInterval)
       ),
-      enabled: config.billingAlert,
     });
     rule.addTarget(new targets.LambdaFunction(billingInfoLambda));
   }

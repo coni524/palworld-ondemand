@@ -19,7 +19,6 @@ import { constants } from './constants';
 import { DiscordInteractions } from './discord-interactions';
 import { DiscordNotificationForwarder } from './discord-notification-forwarder';
 import { StackConfig } from './types';
-import { getPalworldServerConfig } from './util';
 
 interface PalworldStackProps extends StackProps {
   config: Readonly<StackConfig>;
@@ -87,7 +86,9 @@ export class PalworldStack extends Stack {
     const cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: constants.CLUSTER_NAME,
       vpc,
-      containerInsightsV2: ecs.ContainerInsights.ENABLED, // TODO: Add config for container insights
+      containerInsightsV2: config.debug
+        ? ecs.ContainerInsights.ENABLED
+        : ecs.ContainerInsights.DISABLED,
       enableFargateCapacityProviders: true,
     });
 
@@ -120,24 +121,22 @@ export class PalworldStack extends Stack {
       }
     );
 
-    const palworldServerConfig = getPalworldServerConfig();
-
     const palworldServerContainer = new ecs.ContainerDefinition(
       this,
       'ServerContainer',
       {
         containerName: constants.MC_SERVER_CONTAINER_NAME,
-        image: ecs.ContainerImage.fromRegistry(palworldServerConfig.image),
+        image: ecs.ContainerImage.fromRegistry(constants.PALWORLD_DOCKER_IMAGE),
         portMappings: [
           {
-            containerPort: palworldServerConfig.queryPort,
-            hostPort: palworldServerConfig.queryPort,
-            protocol: palworldServerConfig.protocol,
+            containerPort: constants.QUERY_PORT,
+            hostPort: constants.QUERY_PORT,
+            protocol: ecs.Protocol.UDP,
           },
           {
-            containerPort: palworldServerConfig.gamePort,
-            hostPort: palworldServerConfig.gamePort,
-            protocol: palworldServerConfig.protocol,
+            containerPort: constants.GAME_PORT,
+            hostPort: constants.GAME_PORT,
+            protocol: ecs.Protocol.UDP,
           },
         ],
         essential: false,
@@ -175,12 +174,12 @@ export class PalworldStack extends Stack {
 
     serviceSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
-      ec2.Port.udp(palworldServerConfig.queryPort),
+      ec2.Port.udp(constants.QUERY_PORT),
       'Allow inbound traffic to Query Port'
     );
     serviceSecurityGroup.addIngressRule(
       ec2.Peer.anyIpv4(),
-      ec2.Port.udp(palworldServerConfig.gamePort),
+      ec2.Port.udp(constants.GAME_PORT),
       'Allow inbound traffic to Game Port'
     );
 
@@ -224,7 +223,9 @@ export class PalworldStack extends Stack {
       new subscriptions.LambdaSubscription(notificationForwarder.handler)
     );
 
-    new BillingAlert(this, 'BillingAlert', { config, topic: snsTopic });
+    if (config.billingAlert) {
+      new BillingAlert(this, 'BillingAlert', { config, topic: snsTopic });
+    }
 
     const watchdogContainer = new ecs.ContainerDefinition(
       this,

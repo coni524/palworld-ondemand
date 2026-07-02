@@ -12,4 +12,9 @@ export const constants = {
      notifications. */
   DISCORD_WEBHOOK_URL_SSM_PARAMETER: '/palworld/discord/webhook-url',
   PALWORLD_DOCKER_IMAGE: 'thijsvanloef/palworld-server-docker',
+  /* Fixed Palworld ports (UDP). The game port is what players connect to and
+     what the watchdog announces; the query port serves the Steam server
+     browser. */
+  GAME_PORT: 8211,
+  QUERY_PORT: 27015,
 }
