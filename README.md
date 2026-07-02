@@ -146,7 +146,7 @@ vi .env
 - **DOMAIN_NAME**: Domain name 
 - **SLACK_WORKSPACE_ID** : AWS Chatbot Workspace ID 
 - **SLACK_CHANNEL_ID**: Slack Channel ID, You can refer to it in the View Channel defails of the Slack channel
-- **ADMIN_PASSWORD**: RCON Password, Used only inside the container for connection user checks.
+- **ADMIN_PASSWORD**: Palworld AdminPassword, used only inside the task for the watchdog to query player counts via the official REST API.
 - **SERVER_PASSWORD**: Palworld Password, Password required for client connection to Palworld
 - **SERVER_REGION**: Region in which to start Palworld Dedicated Server (e.g.choose a region close to you)
 
@@ -561,7 +561,7 @@ Under `Advanced container configuration` make these changes:
   - `TWILIOTO` : `+1XXXYYYZZZZ` (your cell phone to get a text on)
   - `TWILIOAID` : Twilio account ID
   - `TWILIOAUTH` : Twilio auth code
-  - `RCONPASSWORD` : RCON Password
+  - `ADMIN_PASSWORD` : Palworld AdminPassword (used for REST API Basic auth)
 
 
 If using Twilio to alert you when the server is ready and when it turns off, all four twilio variables must be specified. If publishing to an SNS topic, the `SNSTOPIC` variable must be specified.

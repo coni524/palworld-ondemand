@@ -8,10 +8,20 @@
 [ -n "$DNSZONE" ] || { echo "DNSZONE env variable must be set to the Route53 Hosted Zone ID" ; exit 1; }
 [ -n "$STARTUPMIN" ] || { echo "STARTUPMIN env variable not set, defaulting to a 10 minute startup wait" ; STARTUPMIN=10; }
 [ -n "$SHUTDOWNMIN" ] || { echo "SHUTDOWNMIN env variable not set, defaulting to a 20 minute shutdown wait" ; SHUTDOWNMIN=20; }
-[ -n "$RCONPASSWORD" ] || { echo "The RCONPASSWORD environment variable must be set to AdminPassword." ; exit 1; }
+[ -n "$ADMIN_PASSWORD" ] || ADMIN_PASSWORD="$RCONPASSWORD"  ## backward compatibility with the pre-REST-API variable name
+[ -n "$ADMIN_PASSWORD" ] || { echo "The ADMIN_PASSWORD environment variable must be set to AdminPassword." ; exit 1; }
+[ -n "$RESTAPIPORT" ] || RESTAPIPORT=8212
 
-# Create RCON yaml
-printf "default:\n  address: \"localhost:%s\"\n  password: \"%s\"\n" "$RCONPORT" "$RCONPASSWORD" > /app/rcon.yaml
+## Player count via the official REST API (RCON is deprecated by Palworld and
+## breaks on multi-byte player names). Prints 0 if the API is unreachable.
+function player_count ()
+{
+  local count
+  count=$(curl --silent --fail --max-time 10 -u "admin:$ADMIN_PASSWORD" \
+    "http://localhost:$RESTAPIPORT/v1/api/players" | jq -r '.players | length')
+  [ -n "$count" ] || count=0
+  echo "$count"
+}
 
 function send_notification ()
 {
@@ -106,16 +116,13 @@ do
 done
 echo "Detected Palworld"
 
-## Check for RCON port
-echo "Waiting for Palworld RCON to begin listening for connections..."
-STARTED=0
-while [ $STARTED -lt 1 ]
+## Check for the REST API
+echo "Waiting for the Palworld REST API to begin responding..."
+while true
 do
-  CONNECTIONS=$(netstat -atn | grep :25575 | wc -l)
-  STARTED=$(($STARTED + $CONNECTIONS))
-  if [ $STARTED -gt 0 ]
+  if curl --silent --fail --max-time 10 -u "admin:$ADMIN_PASSWORD" "http://localhost:$RESTAPIPORT/v1/api/info" > /dev/null
   then
-    echo "RCON is listening, we are ready for clients."
+    echo "REST API is responding, we are ready for clients."
     break
   fi
   sleep 1
@@ -131,8 +138,7 @@ CONNECTED=0
 while [ $CONNECTED -lt 1 ]
 do
   echo Waiting for connection, minute $COUNTER out of $STARTUPMIN...
-  CONNECTIONS=$(rcon ShowPlayers | grep -v '^name,' | wc -l)
-  [ -n "$CONNECTIONS" ] || CONNECTIONS=0
+  CONNECTIONS=$(player_count)
   CONNECTED=$(($CONNECTED + $CONNECTIONS))
   COUNTER=$(($COUNTER + 1))
   if [ $CONNECTED -gt 0 ] ## at least one active connection detected, break out of loop
@@ -152,8 +158,7 @@ echo "We believe a connection has been made, switching to shutdown watcher."
 COUNTER=0
 while [ $COUNTER -le $SHUTDOWNMIN ]
 do
-  CONNECTIONS=$(rcon ShowPlayers | grep -v '^name,' | wc -l)
-  [ -n "$CONNECTIONS" ] || CONNECTIONS=0
+  CONNECTIONS=$(player_count)
   if [ $CONNECTIONS -lt 1 ]
   then
     echo "No active connections detected, $COUNTER out of $SHUTDOWNMIN minutes..."
