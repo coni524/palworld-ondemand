@@ -90,7 +90,7 @@ export class PalworldStack extends Stack {
     const cluster = new ecs.Cluster(this, 'Cluster', {
       clusterName: constants.CLUSTER_NAME,
       vpc,
-      containerInsights: true, // TODO: Add config for container insights
+      containerInsightsV2: ecs.ContainerInsights.ENABLED, // TODO: Add config for container insights
       enableFargateCapacityProviders: true,
     });
 

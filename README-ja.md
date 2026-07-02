@@ -109,9 +109,16 @@ SERVER_PASSWORD               = worldofpal
 SERVER_REGION                 = ap-northeast-1
 ```
 
+pnpm のインストール（インストール済みならスキップ）
+```
+curl -fsSL https://get.pnpm.io/install.sh | sh -
+source ~/.bashrc
+```
+
 ビルドとデプロイ
 ```
-npm run build && npm run deploy
+pnpm install
+pnpm run build && pnpm run deploy
 ```
 
 ### 4. Slackエイリアスの設定

@@ -112,13 +112,16 @@ export class DomainStack extends Stack {
     const launcherLambda = new lambda.Function(this, 'LauncherLambda', {
       code: lambda.Code.fromAsset(path.resolve(__dirname, '../../lambda/ecs_service_manager')),
       handler: 'lambda_function.lambda_handler',
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_13,
       environment: {
         REGION: config.serverRegion,
         CLUSTER: constants.CLUSTER_NAME,
         SERVICE: constants.SERVICE_NAME,
       },
-      logRetention: logs.RetentionDays.THREE_DAYS, // TODO: parameterize
+      logGroup: new logs.LogGroup(this, 'LauncherLambdaLogs', {
+        retention: RetentionDays.THREE_DAYS, // TODO: parameterize
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
     });
 
     /**

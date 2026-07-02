@@ -1,13 +1,16 @@
-# version 1.2.0
+# version 2.0.0
 
-FROM public.ecr.aws/amazonlinux/amazonlinux:latest
+# Build the rcon CLI from source so the image works on both amd64 and arm64.
+FROM public.ecr.aws/docker/library/golang:1.26-alpine AS rcon-build
 
-# Set environment variables for Go installation
-ENV GO_VERSION=1.22.0
 ENV RCON_VERSION=0.10.3
-ENV GOPATH /go
-ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
-ENV GO111MODULE on
+
+WORKDIR /src
+RUN wget -qO- https://github.com/gorcon/rcon-cli/archive/refs/tags/v${RCON_VERSION}.tar.gz \
+    | tar -xz --strip-components=1 \
+    && CGO_ENABLED=0 go build -o /rcon ./cmd/gorcon
+
+FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
 # Set environment variables for the RCON client
 ENV RCONPORT=25575
@@ -15,19 +18,12 @@ ENV RCONPORT=25575
 # Set the working directory in the container
 WORKDIR /app
 
-# Install required packages
-RUN yum install -y net-tools jq nmap-ncat go tar aws-cli && \
-    yum clean all
+# Install required packages (curl-minimal and jq come with the watchdog's needs;
+# netstat is provided by net-tools, the AWS CLI v2 by awscli-2)
+RUN dnf install -y net-tools jq awscli-2 && \
+    dnf clean all
 
-# Install the RCON package
-RUN curl -sL https://github.com/gorcon/rcon-cli/archive/refs/tags/v${RCON_VERSION}.tar.gz -o rcon.tar.gz \
-    && tar -xzvf rcon.tar.gz \
-    && rm rcon.tar.gz \
-    && mv rcon-cli-${RCON_VERSION}/* ./ \
-    && rm -rf rcon-cli-${RCON_VERSION} \
-    && go build -v -o rcon ./cmd/gorcon \
-    && chmod +x rcon \
-    && mv rcon /usr/local/bin/
+COPY --from=rcon-build /rcon /usr/local/bin/rcon
 
 # Copy the `watchdog.sh` script to the container and make it executable
 COPY ./watchdog.sh .

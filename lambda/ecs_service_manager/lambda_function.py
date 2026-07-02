@@ -1,9 +1,9 @@
 import os
 import boto3
 
-DEFAULT_REGION = 'us-west-2'
-DEFAULT_CLUSTER = 'minecraft'
-DEFAULT_SERVICE = 'minecraft-server'
+DEFAULT_REGION = 'us-east-1'
+DEFAULT_CLUSTER = 'palworld'
+DEFAULT_SERVICE = 'palworld-server'
 
 REGION = os.environ.get('REGION', DEFAULT_REGION)
 CLUSTER = os.environ.get('CLUSTER', DEFAULT_CLUSTER)
