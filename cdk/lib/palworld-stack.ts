@@ -1,4 +1,3 @@
-import * as path from 'path';
 import {
   Stack,
   StackProps,
@@ -8,19 +7,19 @@ import {
   aws_ecs as ecs,
   aws_logs as logs,
   aws_sns as sns,
+  CfnOutput,
   RemovalPolicy,
   Arn,
   ArnFormat,
 } from 'aws-cdk-lib';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
+import { BillingAlert } from './billing-alert';
 import { constants } from './constants';
+import { DiscordInteractions } from './discord-interactions';
 import { DiscordNotificationForwarder } from './discord-notification-forwarder';
-import { SSMParameterReader } from './ssm-parameter-reader';
 import { StackConfig } from './types';
-//import { getPalworldServerConfig, isDockerInstalled } from './util';
 import { getPalworldServerConfig } from './util';
-import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
 
 interface PalworldStackProps extends StackProps {
   config: Readonly<StackConfig>;
@@ -212,16 +211,7 @@ export class PalworldStack extends Stack {
       palworldServerService.connections
     );
 
-    const hostedZoneId = new SSMParameterReader(
-      this,
-      'Route53HostedZoneIdReader',
-      {
-        parameterName: constants.HOSTED_ZONE_SSM_PARAMETER,
-        region: constants.DOMAIN_STACK_REGION,
-      }
-    ).getParameterValue();
-
-    // Define SNS Topic for watchdog notifications (startup/shutdown)
+    // Topic for the watchdog (startup/shutdown) and billing notifications
     const snsTopic = new sns.Topic(this, 'PalworldServerSnsTopic');
     snsTopic.grantPublish(ecsTaskRole);
 
@@ -234,27 +224,13 @@ export class PalworldStack extends Stack {
       new subscriptions.LambdaSubscription(notificationForwarder.handler)
     );
 
-    // const image = new DockerImageAsset(this, 'CDKDockerImage', {
-    //   directory: path.join(__dirname, '../../palworld-ecsfargate-watchdog/'),
-    //   platform: Platform.LINUX_AMD64,
-    //   // buildArgs
-    //   buildArgs: {
-    //     RCONPASSWORD: config.palworld.adminPassword,
-    //   },
-    // });
-
-    //const containerImage = ecs.ContainerImage.fromDockerImageAsset(image);
+    new BillingAlert(this, 'BillingAlert', { config, topic: snsTopic });
 
     const watchdogContainer = new ecs.ContainerDefinition(
       this,
       'WatchDogContainer',
       {
         containerName: constants.WATCHDOG_SERVER_CONTAINER_NAME,
-        // image: isDockerInstalled()
-        //   ? containerImage
-        //   : ecs.ContainerImage.fromRegistry(
-        //       'doctorray/minecraft-ecsfargate-watchdog'
-        //     ),
         image: ecs.ContainerImage.fromRegistry(
           'coni524/palworld-ecsfargate-watchdog'
         ),
@@ -263,8 +239,6 @@ export class PalworldStack extends Stack {
         environment: {
           CLUSTER: constants.CLUSTER_NAME,
           SERVICE: constants.SERVICE_NAME,
-          DNSZONE: hostedZoneId,
-          SERVERNAME: `${config.subdomainPart}.${config.domainName}`,
           SNSTOPIC: snsTopic.topicArn,
           STARTUPMIN: config.startupMinutes,
           SHUTDOWNMIN: config.shutdownMinutes,
@@ -310,43 +284,21 @@ export class PalworldStack extends Stack {
     serviceControlPolicy.attachToRole(ecsTaskRole);
 
     /**
-     * Add service control policy to the Discord interactions lambda from the
-     * domain stack
+     * Lambda that starts the server from the Discord /start slash command.
+     * Living in the same stack as the service, it gets the service-control
+     * policy attached to its role directly.
      */
-    const discordLambdaRoleArn = new SSMParameterReader(
+    const discordInteractions = new DiscordInteractions(
       this,
-      'discordLambdaRoleArn',
-      {
-        parameterName: constants.DISCORD_LAMBDA_ROLE_ARN_SSM_PARAMETER,
-        region: constants.DOMAIN_STACK_REGION,
-      }
-    ).getParameterValue();
-    const discordLambdaRole = iam.Role.fromRoleArn(
-      this,
-      'DiscordLambdaRole',
-      discordLambdaRoleArn
+      'DiscordInteractions',
+      { config }
     );
-    serviceControlPolicy.attachToRole(discordLambdaRole);
+    serviceControlPolicy.attachToRole(discordInteractions.handler.role!);
 
-    /**
-     * This policy gives permission to our ECS task to update the A record
-     * associated with our minecraft server. Retrieve the hosted zone identifier
-     * from Route 53 and place it in the Resource line within this policy.
-     */
-    const iamRoute53Policy = new iam.Policy(this, 'IamRoute53Policy', {
-      statements: [
-        new iam.PolicyStatement({
-          sid: 'AllowEditRecordSets',
-          effect: iam.Effect.ALLOW,
-          actions: [
-            'route53:GetHostedZone',
-            'route53:ChangeResourceRecordSets',
-            'route53:ListResourceRecordSets',
-          ],
-          resources: [`arn:aws:route53:::hostedzone/${hostedZoneId}`],
-        }),
-      ],
+    new CfnOutput(this, 'DiscordInteractionsEndpointUrl', {
+      description:
+        'Set this as the Interactions Endpoint URL of the Discord application',
+      value: discordInteractions.functionUrl.url,
     });
-    iamRoute53Policy.attachToRole(ecsTaskRole);
   }
 }

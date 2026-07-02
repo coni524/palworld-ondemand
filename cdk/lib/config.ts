@@ -6,8 +6,6 @@ import { stringAsBoolean } from './util';
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 export const resolveConfig = (): StackConfig => ({
-  domainName: process.env.DOMAIN_NAME || '',
-  subdomainPart: process.env.SUBDOMAIN_PART || 'palworld',
   serverRegion: process.env.SERVER_REGION || 'us-east-1',
   shutdownMinutes: process.env.SHUTDOWN_MINUTES || '20',
   startupMinutes: process.env.STARTUP_MINUTES || '10',

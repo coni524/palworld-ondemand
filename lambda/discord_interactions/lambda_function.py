@@ -23,7 +23,6 @@ from discord_interactions import (
     verify_key,
 )
 
-REGION = os.environ['REGION']
 CLUSTER = os.environ['CLUSTER']
 SERVICE = os.environ['SERVICE']
 DISCORD_PUBLIC_KEY = os.environ['DISCORD_PUBLIC_KEY']
@@ -90,7 +89,8 @@ def handle_interaction(event, context):
 
 def start_server(event):
     """Scales the service to 1 and reports back via the interaction token."""
-    ecs = boto3.client('ecs', region_name=REGION)
+    # The Lambda runs in the same region as the ECS service.
+    ecs = boto3.client('ecs')
     response = ecs.describe_services(cluster=CLUSTER, services=[SERVICE])
     desired = response['services'][0]['desiredCount']
 

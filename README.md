@@ -21,11 +21,10 @@ On-demand Palworld Dedicated Server in AWS
   - [Diagram](#diagram)
   - [Cost Breakdown](#cost-breakdown)
   - [Quick Start](#quick-start)
-    - [1. Route53](#1-route53)
-    - [2. Discord Application](#2-discord-application)
-    - [3. Configuration and Deployment](#3-configuration-and-deployment)
-    - [4. Connect Discord](#4-connect-discord)
-    - [5. Run palworld](#5-run-palworld)
+    - [1. Discord Application](#1-discord-application)
+    - [2. Configuration and Deployment](#2-configuration-and-deployment)
+    - [3. Connect Discord](#3-connect-discord)
+    - [4. Run palworld](#4-run-palworld)
   - [Background](#background)
   - [Workflow](#workflow)
 - [Installation and Setup](#installation-and-setup)
@@ -36,15 +35,11 @@ On-demand Palworld Dedicated Server in AWS
     - [Creating the EFS](#creating-the-efs)
     - [Allow access to EFS from within the VPC](#allow-access-to-efs-from-within-the-vpc)
   - [Lambda](#lambda)
-  - [Route 53](#route-53)
-    - [Server DNS Record](#server-dns-record)
-    - [Query Logging](#query-logging)
   - [Optional SNS Notifications](#optional-sns-notifications)
   - [IAM](#iam)
     - [Policies](#policies)
       - [EFS Policy](#efs-policy)
       - [ECS Policy](#ecs-policy)
-      - [Route 53 Policy](#route-53-policy)
       - [SNS policy (optional)](#sns-policy-optional)
     - [Roles](#roles)
       - [ECS Role](#ecs-role)
@@ -53,7 +48,6 @@ On-demand Palworld Dedicated Server in AWS
     - [Task Definition](#task-definition)
     - [Cluster](#cluster)
     - [Service](#service)
-  - [CloudWatch](#cloudwatch)
 - [Usage and Customization](#usage-and-customization)
   - [Option 1: Mount EFS Directly](#option-1-mount-efs-directly)
   - [Option 2: DataSync and S3](#option-2-datasync-and-s3)
@@ -63,13 +57,11 @@ On-demand Palworld Dedicated Server in AWS
     - [Usage and file editing](#usage-and-file-editing)
 - [Testing and Troubleshooting](#testing-and-troubleshooting)
   - [Areas of concern, what to watch](#areas-of-concern-what-to-watch)
-    - [CloudWatch](#cloudwatch-1)
     - [Lambda](#lambda-1)
     - [Elastic Container Service](#elastic-container-service-1)
       - [Service won't launch task](#service-wont-launch-task)
       - [Containers won't switch to RUNNING state](#containers-wont-switch-to-running-state)
     - [Can't connect to palworld server](#cant-connect-to-palworld-server)
-  - [Server starts randomly?](#server-starts-randomly)
 - [Other Stuff](#other-stuff)
   - [README Template](#readme-template)
   - [Concerned about cost overruns?](#concerned-about-cost-overruns)
@@ -79,10 +71,10 @@ On-demand Palworld Dedicated Server in AWS
 ## Requirements
 
 - AWS Account
-- A domain name with a public DNS provided by Route 53; there is no need to register the domain through Route 53.
-- The creation of a Route53 zone must be completed for the domain name you own. [DNS served from Route 53].
 - Palworld client
 - A Discord server (guild) where you can add an application and register slash commands.
+
+No domain name is required. The server has no fixed address: the task's public IP address (which changes on every launch) is announced in the Discord startup notification as `IP:port`, and players copy it into the Palworld server list.
 
 ## Diagram
 
@@ -102,19 +94,14 @@ Note: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/fargate-capaci
 - Link to [AWS Estimate] assuming 20 hours a month usage.
 
 - tl;dr:
-   - $0.50 per month for DNS zones, $0.29072 per hour for Fargate usage with 4 vCPU and 16GB memory. All other costs negligible, a couple of pennies per month at most.
+   - $0.29072 per hour for Fargate usage with 4 vCPU and 16GB memory. All other costs negligible, a couple of pennies per month at most.
 
 - tl;dr;tl;dt:
-   - Approximately $5.81 / month for 20 hours of usage with 4 vCPU and 16GB memory configuration, plus $0.50 for DNS zones, totaling nearly $6.31 / month.
+   - Approximately $5.81 / month for 20 hours of usage with 4 vCPU and 16GB memory configuration.
 
 ## Quick Start
 
-### 1. Route53
-The domain must have been acquired (not necessarily AWS) and the host zone must have been created with Route53.
-
-![route53](docs/route53.png)
-
-### 2. Discord Application
+### 1. Discord Application
 
 Create a Discord application that receives the launch command and the notifications.
 
@@ -125,7 +112,7 @@ Create a Discord application that receives the launch command and the notificati
 5. Enable `Settings > Advanced > Developer Mode` in your Discord client, right-click your server name, and copy the **Server ID** (guild ID).
 6. Create a webhook under `Integrations > Webhooks` in the channel that should receive notifications and note the **Webhook URL**.
 
-### 3. Configuration and Deployment
+### 2. Configuration and Deployment
 Deployment can be done using AWS CloudShell only.
 
 ![cloudshell](docs/cloudshell.png)
@@ -146,7 +133,6 @@ vi .env
 
 **Required field**
 
-- **DOMAIN_NAME**: Domain name
 - **DISCORD_PUBLIC_KEY**: Public Key of the Discord application, found on the `General Information` page
 - **DISCORD_GUILD_ID**: ID of the Discord server (guild) allowed to run the slash commands
 - **ADMIN_PASSWORD**: Palworld AdminPassword, used only inside the task for the watchdog to query player counts via the official REST API.
@@ -156,7 +142,6 @@ vi .env
 **Example .env**
 ```
 # Required
-DOMAIN_NAME                   = example.net
 DISCORD_PUBLIC_KEY            = 3717e9b6247e0a5e9db9e0e70d842c3a...
 DISCORD_GUILD_ID              = 1234567890123456789
 ADMIN_PASSWORD                = worldofpaladmin
@@ -164,10 +149,10 @@ SERVER_PASSWORD               = worldofpal
 SERVER_REGION                 = ap-northeast-1
 ```
 
-Store the webhook URL in SSM Parameter Store. CloudFormation cannot create SecureString parameters, so this single value is registered by hand:
+Store the webhook URL in SSM Parameter Store in the same region as `SERVER_REGION`. CloudFormation cannot create SecureString parameters, so this single value is registered by hand:
 
 ```
-aws ssm put-parameter --region us-east-1 \
+aws ssm put-parameter --region ap-northeast-1 \
   --name /palworld/discord/webhook-url --type SecureString \
   --value 'https://discord.com/api/webhooks/...'
 ```
@@ -184,9 +169,9 @@ pnpm install
 pnpm run build && pnpm run deploy
 ```
 
-When the deploy finishes, note the **DiscordInteractionsEndpointUrl** value (a Lambda Function URL) that `palworld-domain-stack` outputs.
+When the deploy finishes, note the **DiscordInteractionsEndpointUrl** value (a Lambda Function URL) that `palworld-server-stack` outputs.
 
-### 4. Connect Discord
+### 3. Connect Discord
 
 Point the Discord application at the deployed endpoint and register the slash command.
 
@@ -202,7 +187,7 @@ DISCORD_GUILD_ID=<Server ID> \
 
 The command is registered only in your server and, by default, only server admins can run it. Grant additional roles or members under `Server Settings > Integrations`.
 
-### 5. Run palworld
+### 4. Run palworld
 
 Run the slash command in a channel of your Discord server:
 
@@ -210,11 +195,11 @@ Run the slash command in a channel of your Discord server:
 /start
 ```
 
-After a few minutes, a message arrives in the webhook channel that the startup is complete and you can connect.
+After a few minutes, a message arrives in the webhook channel that the startup is complete, containing the server address (`IP:port`). Copy it into the Palworld server list to connect. The IP address changes on every launch, so update the entry each time.
 
 ```
-e.g. 
-palworld.example.net:8211
+e.g.
+🟢 palworld-server is online at 203.0.113.10:8211
 password: worldofpal
 ```
 
@@ -232,9 +217,9 @@ The process works as follows:
 
 1. run the `/start` slash command in Discord
 2. Discord POSTs the interaction to a **Lambda** Function URL; the function verifies the request signature and changes the existing **ECS Fargate** service to the desired task count of **1**.
-3. **Fargate** starts two containers, **Palworld** and a watchdog, and updates the DNS records to the new IP.
-4. watchdog publishes to **SNS** when the server is ready, and a forwarder Lambda posts the notification to the **Discord** channel webhook.
-5. update the server list in **Palworld** and the server will be ready for connection
+3. **Fargate** starts two containers, **Palworld** and a watchdog; the watchdog looks up the task's public IP address.
+4. watchdog publishes to **SNS** when the server is ready, and a forwarder Lambda posts the notification, containing the server's `IP:port`, to the **Discord** channel webhook.
+5. add the address from the notification to the server list in **Palworld** and connect
 6. after 10 minutes without a connection or after 20 minutes since the last client disconnected (customizable), the watchdog will set the desired task count to **zero**, shut down, and send a shutdown notification the same way.
 
 # Installation and Setup
@@ -252,7 +237,6 @@ To simplify the procedure, your ECS cluster name, service name, and sns topic na
 Things you need to go find because they'll be used in the procedure are:
 
 - AWS Account ID. This is a 12 digit number (at least mine is). [Finding your AWS account ID]. Put this in the IAM policies where I've put `zzzzzzzzzzzz`
-- Hosted Zone ID. This is a variable length string tied to your domain name in the Route 53 console.
 - VPC IPv4 CIDR. It looks like (and very well may be) `172.31.0.0/16`. Find it by opening the VPC console, tapping on `Your VPCs` and looking in the `IPv4 CIDR` column.
 
 Things you will locate as you go along and will need during IAM policy creation:
@@ -262,7 +246,7 @@ Things you will locate as you go along and will need during IAM policy creation:
 
 ## Region Selection
 
-While it doesn't matter which region you decide to run your server in, **Route 53 will only ship its logs to us-east-1**, which in turns means that the lambda function also has to be in us-east-1. This lambda function can fire off the server in another region without issue, as long as the destination region is specified within the lambda function code. For the purposes of this documentation, I'm using `us-west-2` to run my server.
+It doesn't matter which region you decide to run your server in — pick one close to your players. Everything (the ECS service, the Lambda functions, and the SSM parameter for the webhook URL) lives in that single region. For the purposes of this documentation, I'm using `us-west-2` to run my server.
 
 Double check the region in anything you're copy/pasting.
 
@@ -302,65 +286,11 @@ Open the VPC console, find `Security Groups` on the left hand side. Select the d
 
 ## Lambda
 
-A lambda function must exist that turns on your palworld service. We do this with a simple python function that change the "Tasks Desired" count from zero to one when it is invoked. We haven't created the ECS service yet, but that's okay, because we decided on the cluster name and service name before we started.
+A lambda function must exist that turns on your palworld service by changing the "Tasks Desired" count from zero to one. In this project that is the Discord interactions Lambda (`lambda/discord_interactions/` in this repository): Discord POSTs the `/start` slash command to its Function URL, the function verifies the request signature and scales the service, and a companion forwarder Lambda (`lambda/discord_notification/`) posts SNS notifications to the Discord channel webhook. The CDK deploys all of this in your server region; setting it up by hand means recreating the Function URL, the environment variables, and the self-invoke permission, so the manual path is not described step by step here.
 
-Because we are relying on Route 53+CloudWatch to invoke the Lambda function, it _must_ reside in the N. Virginia (us-east-1) region.
+We haven't created the ECS service yet, but that's okay, because we decided on the cluster name and service name before we started.
 
-From the Lambda console, create a new function using `Author from scratch`. I've used Python 3.9 but the latest version available should be fine. Call it `palworld-launcher`. The other defaults are fine, it will create an IAM role we will modify afterward. We do not need to specify a VPC.
-
-Once the function has been created and you're in the code editor, replace the contents of the default lambda_function.py with this:
-
-```python
-import boto3
-
-REGION = 'us-west-2'
-CLUSTER = 'palworld'
-SERVICE = 'palworld-server'
-
-
-def lambda_handler(event, context):
-    """Updates the desired count for a service."""
-
-    ecs = boto3.client('ecs', region_name=REGION)
-    response = ecs.describe_services(
-        cluster=CLUSTER,
-        services=[SERVICE],
-    )
-
-    desired = response["services"][0]["desiredCount"]
-
-    if desired == 0:
-        ecs.update_service(
-            cluster=CLUSTER,
-            service=SERVICE,
-            desiredCount=1,
-        )
-        print("Updated desiredCount to 1")
-        return f"Updated desiredCount to 1 for {SERVICE}"
-    else:
-        print("desiredCount already at 1")
-        return f"desiredCount already at 1 for {SERVICE}"
-```
-
-This file is also in this repository in the `lambda` folder. Change the region, cluster, or service on lines 3-5 if needed. Then, click the `Deploy` button. Switch back to your server region now so that we don't create anything in the wrong region later.
-
-Lambda can be very inexpensive when used sparingly. For example, this lambda function runs in about 1600ms when starting the container, and in about 500ms if the container is already online. This means, running at a 128MB memory allocation, it will cost $0.00000336 the first time the server is launched from an off state, and about $0.00000105 every time someone connects to an online server, because anyone connecting will have to perform a DNS lookup which will trigger your lambda function. If you and four friends played once a day for a month, it would come out to $0.0002583, which is 2.6% of a single penny.
-
-## Route 53
-
-Ensure that a domain name you own is set up in Route 53. If you don't own one, consider registering one. You can use Route 53 for convenience or go to one of the big domain providers. Either way, ensure you've got your nameservers set to host out of Route 53 as it's required for the on-demand functionality.
-
-### Server DNS Record
-
-Add an A record with a 30 second TTL with a unique name that you will use to connect to your palworld server. Something like palworld.yourdomainname.com, or more complex if desired, as every time anyone _in the world_ performs a DNS lookup on this name, your Palworld server will launch. The value of the record is irrelevant because it will be updated every time our container launches. Use 1.1.1.1 or 192.168.1.1 for now if you can't think of anything. The low TTL is so that the DNS clients and non-authoritative DNS servers won't cache the record long and you can connect quicker after the IP updates.
-
-### Query Logging
-
-🚧 In this project, starting from Route53 is disabled. (Commented out)
-
-The magic that allows the on-demand idea to work without any "always on" infrastructure comes in here, with Query logging. Every time someone looks up a DNS record for your domain, it will hit Route 53 as the authoritative DNS server. These queries can be logged and actions performed from them.
-
-From your hosted zone, click `Configure query logging` on the top right. Then, click `Grant Permission` so that it will apply appropriate policies for queries to be logged. Finally, in `Log group` select `Create log group` and use the suggested name with your domain name in the string, `/aws/route53/yourdomainname.com` and click `Create`.
+Lambda can be very inexpensive when used sparingly. The function only runs when someone launches the server from Discord, so the cost is a rounding error compared to Fargate.
 
 ## Optional SNS Notifications
 
@@ -408,7 +338,7 @@ Call this policy `efs.rw.palworld-data`
 
 #### ECS Policy
 
-This policy will allow for management of the Elastic Container Service tasks and service. This lets the Lambda function start the service, as well as allows the service to turn itself off when not in use. The `ec2:DescribeNetworkInterfaces` section is so that the task can determine what IP address is assigned to it to properly update the DNS record.
+This policy will allow for management of the Elastic Container Service tasks and service. This lets the Lambda function start the service, as well as allows the service to turn itself off when not in use. The `ec2:DescribeNetworkInterfaces` section is so that the task can determine what public IP address is assigned to it and announce it in the startup notification.
 
 Replace the `zzzzzzzzzzzz` below with the appriopriate account ID in your ARN. If you are not using the default cluster name or service name we decided above, change those as well. Change the region if necessary.
 
@@ -430,36 +360,6 @@ Call this policy `ecs.rw.palworld-service`
       "Effect": "Allow",
       "Action": ["ec2:DescribeNetworkInterfaces"],
       "Resource": ["*"]
-    }
-  ]
-}
-```
-
-#### Route 53 Policy
-
-This policy gives permission to our ECS task to update the DNS `A` record associated with our palworld server. Note: This will give your container access to change _all_ records within the hosted zone, and this may not be desirable if you're using this domain for anything else outside of this purpose. If you'd like to increase security, you can create a subdomain zone of the main domain to limit the impact. This is an advanced use case and the setup is described pretty well within the answers to [Delegate Zone Setup].
-
-Place the hosted zone identifier from our checklist and place it in the Resource line within this policy where the XXX's are.
-
-Call this policy `route53.rw.yourdomainname`
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "route53:GetHostedZone",
-        "route53:ChangeResourceRecordSets",
-        "route53:ListResourceRecordSets"
-      ],
-      "Resource": "arn:aws:route53:::hostedzone/XXXXXXXXXXXXXXXXXXXXX"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["route53:ListHostedZones"],
-      "Resource": "*"
     }
   ]
 }
@@ -498,14 +398,13 @@ In the policy list, you can click `Filter policies` and select `Customer managed
 
 - `efs.rw.palworld-data`
 - `ecs.rw.palworld-service`
-- `route53.rw.yourdomainname`
 - `sns.publish.palworld-notifications`
 
 Click `Next: Tags` then `Next: Review`. Call the role `ecs.task.palworld-server` and click `Create role`.
 
 #### Lambda Role
 
-In the roles list, find the role created by the lambda function earlier. It will be called `palworld-launcher-role-xxxxxxxx`. Click on it, then click `Attach policies`. Give it the `ecs.rw.palworld-service` policy we created earlier.
+In the roles list, find the execution role of the Lambda function that starts the server (the CDK names it after `palworld-discord-interactions`). Click on it, then click `Attach policies`. Give it the `ecs.rw.palworld-service` policy we created earlier.
 
 ## Elastic Container Service
 
@@ -559,8 +458,6 @@ Under `Advanced container configuration` make these changes:
 - Environmental Variables (required)
   - `CLUSTER` : `palworld`
   - `SERVICE` : `palworld-server`
-  - `DNSZONE` : Route 53 hosted zone ID from your checklist
-  - `SERVERNAME` : `palworld.yourdomainname.com`
 - Environmental Variables (optional)
   - `STARTUPMIN` : Number of minutes to wait for a connection after starting before terminating (default 10)
   - `SHUTDOWNMIN` : Number of minutes to wait after the last client disconnects before terminating (default 20)
@@ -593,7 +490,7 @@ Within your `palworld` cluster, create a new Service.
   - Platform version: `LATEST`
   - Cluster: `palworld`
   - Service name: `palworld-server` (The service name from our checklist)
-  - Number of tasks: `0` (The DNS+Lambda pipeline will change this to 1 on demand)
+  - Number of tasks: `0` (The Discord `/start` command will change this to 1 on demand)
 
 `FARGATE_SPOT` is significantly cheaper but AWS can terminate your instance at any time if they need the capacity. The watchdog is designed to intercept this termination command and shut down safely, so it's fine to use Spot to save a few pennies, at the extremely low risk of game interruption.
 
@@ -619,26 +516,9 @@ Click `Next step`
 
 Tap `Next`, `Next`, and `Create Service`.
 
-## CloudWatch
-
-The final step to link everything together is to configure CloudWatch to start your server when you try to connect to it.
-
-Open the CloudWatch console and change to the `us-east-1` region. Go to `Logs` -> `Log groups` -> and find the `/aws/route53/yourdomainname.com` Log group that we created in the Route 53 Query Log Configuration. Optionally, modify the retention period to delete the logs after a few days so they don't accumulate forever.
-
-Go to the `Subscription filters` tab, click `Create` and then `Create Lambda subscription filter`.
-
-In the `Create Lambda subscription filter` page, use the following values:
-
-- Lambda Function : `palworld-launcher`
-- Log format : `Other`
-- Subscription filter pattern: `"palworld.yourdomainname.com"` (or just simply `palworld` -- this is what it's looking for to fire off the lambda)
-- Subscription filter name: `palworld`
-
-Click `Start streaming`.
-
 # Usage and Customization
 
-Launch your server the first time by visiting your server name in a web browser, which won't load anything but it will trigger the actions. You can watch it start up by refreshing the ECS console page within your `palworld` cluster. Watch the `Desired tasks` change from 0 to 1, then on the `Tasks` tab select our task and refresh until both containers say `RUNNING`. You can also go to the `Logs` tab here and refresh the container logs to see the output of the initial world creation, etc.
+Launch your server the first time by running `/start` in your Discord server. You can watch it start up by refreshing the ECS console page within your `palworld` cluster. Watch the `Desired tasks` change from 0 to 1, then on the `Tasks` tab select our task and refresh until both containers say `RUNNING`. You can also go to the `Logs` tab here and refresh the container logs to see the output of the initial world creation, etc.
 
 To use your new server, open Palworld Multiplayer, add your new server, and join. It will fail at first if the server is not started, but then everything comes online and you can join your new world! You may notice that you don't have many permissions or ability to customize a lot of things yet, so let's dig into how to edit the relevant files!
 
@@ -728,13 +608,9 @@ Best practice would be, any time you want to make a change to always copy the la
 
 # Testing and Troubleshooting
 
-The easiest way to trigger your process is to perform a dns lookup, which you can simply do by trying to visit your server name in a web browser. It will fail (duh) but it will also trigger your server to start up.
+The easiest way to trigger your process is to run the `/start` slash command in your Discord server.
 
 ## Areas of concern, what to watch
-
-### CloudWatch
-
-Are your DNS queries getting logged properly? Check in the log groups, hit refresh. Often takes up to 30 seconds for them to show up.
 
 ### Lambda
 
@@ -754,13 +630,7 @@ Check all of the above, but also ensure you're using an EFS Access Point with th
 
 ### Can't connect to palworld server
 
-Refresh. Wait a minute, especially the first launch. Check ECS to see that the containers are in the RUNNING state. Open the running task, go to the logs tab, select palworld and see if there are any errors on the logs. Did you make sure you opened the right port (8211 UDP and 27015 UDP) to the world in the task security group?? Security groups can be edited from both the VPC and the EC2 console.
-
-## Server starts randomly?
-
-🚧 In this project, invocation from DNS queries is disabled.
-
-Remember, the server starts with a DNS query automatically. So, if you've got buddies you've shared the server with, it may start up if they open their multiplayer screen to play on a different server if yours is in the list! If this is an issue, it could probably be mitigated with a more advanced CloudWatch Subscription Filter that checks against the source IP address in addition to just the domain name, with it limiting to your ISP or location.
+Refresh. Wait a minute, especially the first launch. Check ECS to see that the containers are in the RUNNING state. Open the running task, go to the logs tab, select palworld and see if there are any errors on the logs. Did you make sure you opened the right port (8211 UDP and 27015 UDP) to the world in the task security group?? Security groups can be edited from both the VPC and the EC2 console. Also double-check the IP address: it changes on every launch, so use the one from the latest Discord notification.
 
 # Other Stuff
 
@@ -780,7 +650,5 @@ Open an issue, fork the repo, send me a pull request or a message.
 [finding your aws account id]: https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html#FindingYourAWSId
 [default vpc]: https://docs.aws.amazon.com/vpc/latest/userguide/default-vpc.html
 [aws estimate]: https://calculator.aws/#/estimate?id=ebd1972b24b7d393610389a0017d3e1f8df2ed56
-[dns served from route 53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-configuring.html
-[delegate zone setup]: https://stackoverflow.com/questions/47527575/aws-policy-allow-update-specific-record-in-route53-hosted-zone
 [billing alert]: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html
 [s3 browser]: https://s3browser.com

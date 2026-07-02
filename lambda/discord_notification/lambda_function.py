@@ -1,10 +1,11 @@
 """Forwards SNS notifications (watchdog and billing report) to a Discord
 channel webhook.
 
-The webhook URL is read at runtime from SSM Parameter Store so it never
-appears in a CloudFormation template. Create the parameter once by hand:
+The webhook URL is read at runtime from SSM Parameter Store in the same
+region so it never appears in a CloudFormation template. Create the
+parameter once by hand:
 
-    aws ssm put-parameter --region us-east-1 \
+    aws ssm put-parameter --region <server region> \
         --name /palworld/discord/webhook-url --type SecureString \
         --value https://discord.com/api/webhooks/...
 """
@@ -16,9 +17,8 @@ import urllib.request
 import boto3
 
 WEBHOOK_URL_PARAMETER = os.environ['WEBHOOK_URL_PARAMETER']
-SSM_REGION = os.environ['SSM_REGION']
 
-ssm = boto3.client('ssm', region_name=SSM_REGION)
+ssm = boto3.client('ssm')
 _webhook_url = None
 
 

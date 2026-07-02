@@ -38,19 +38,6 @@ export type PalworldImageEnv = Record<string, string>;
 
 export interface StackConfig {
   /**
-   * **Required**. Domain name of existing Route53 Hosted Zone
-   *
-   */
-  domainName: string;
-  /**
-   * Name of the subdomain part to be used for creating a delegated hosted zone
-   * (minecraft.example.com) and an NS record on your existing (example.com)
-   * hosted zone. This subdomain should not already be in use.
-   *
-   * @default "palworld"
-   */
-  subdomainPart: string;
-  /**
    * The AWS region to deploy your minecraft server in.
    *
    * @default "us-east-1"

@@ -15,9 +15,8 @@ import { constants } from './constants';
 /**
  * Lambda that forwards SNS notifications to a Discord channel webhook.
  *
- * One instance is deployed next to each SNS topic (server stack and billing
- * stack) so every subscription stays within its topic's region. The webhook
- * URL is read at runtime from SSM Parameter Store in us-east-1.
+ * The webhook URL is read at runtime from SSM Parameter Store in the same
+ * region, where it must be created manually as a SecureString.
  */
 export class DiscordNotificationForwarder extends Construct {
   public readonly handler: lambda.Function;
@@ -34,7 +33,6 @@ export class DiscordNotificationForwarder extends Construct {
       timeout: Duration.seconds(30),
       environment: {
         WEBHOOK_URL_PARAMETER: constants.DISCORD_WEBHOOK_URL_SSM_PARAMETER,
-        SSM_REGION: constants.DOMAIN_STACK_REGION,
       },
       logGroup: new logs.LogGroup(this, 'Logs', {
         retention: logs.RetentionDays.THREE_DAYS,
@@ -49,7 +47,6 @@ export class DiscordNotificationForwarder extends Construct {
           Arn.format(
             {
               service: 'ssm',
-              region: constants.DOMAIN_STACK_REGION,
               resource: 'parameter',
               resourceName: constants.DISCORD_WEBHOOK_URL_SSM_PARAMETER.replace(
                 /^\//,

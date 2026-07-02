@@ -19,11 +19,10 @@
   - [構成図](#構成図)
   - [コスト内訳](#コスト内訳)
   - [クイックスタート](#クイックスタート)
-    - [1. Route 53](#1-route-53)
-    - [2. Discord アプリケーションの作成](#2-discord-アプリケーションの作成)
-    - [3. コンフィグの設定とデプロイ](#3-コンフィグの設定とデプロイ)
-    - [4. Discord との接続](#4-discord-との接続)
-    - [5. Palworld Dedicated Server を起動する](#5-palworld-dedicated-server-を起動する)
+    - [1. Discord アプリケーションの作成](#1-discord-アプリケーションの作成)
+    - [2. コンフィグの設定とデプロイ](#2-コンフィグの設定とデプロイ)
+    - [3. Discord との接続](#3-discord-との接続)
+    - [4. Palworld Dedicated Server を起動する](#4-palworld-dedicated-server-を起動する)
 - [その他](#その他)
   - [README テンプレート](#readme-テンプレート)
   - [費用が心配な方へ](#費用が心配な方へ)
@@ -33,10 +32,12 @@
 ## 要件
 
 - AWSアカウント
-- 独自ドメイン (お名前.com や ValueDomain などで取得するか 無料で運用できる Freenom を利用しても良いかもしれません)
-- 所有するドメイン名に対してRoute53ゾーンの作成が完了していること [DNS served from Route 53]
 - パルワールドのクライアント
 - Discord のサーバー（ギルド）。アプリケーションの追加とスラッシュコマンドの登録に管理権限が必要です。
+
+独自ドメインは不要です。
+サーバーに固定の名前は付けず、起動のたびに変わるパブリック IP アドレス（インターネット側から接続するためのアドレス）を「IP:ポート番号」の形式で Discord の起動通知に載せます。
+接続時は通知のアドレスをパルワールドのサーバーリストに入力します。
 
 ## 構成図
 
@@ -54,21 +55,16 @@ AWS の都合で実行中に中断される可能性はありますが、watchdo
 ノート：https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/fargate-capacity-providers.html
 
 - 月20時間の利用を想定した価格想定 [AWS Estimate]
-- DNS ゾーンは月額 $0.50、Fargate の使用料は 1 時間あたり $0.29072（4vCPU、16GB メモリ）。その他のコストは少なく済みます。
-- 4vCPU、16GBメモリ構成で20時間使用した場合、月額約5.81ドル、DNSゾーンに1ドル(1つのゾーンと本CDKで作成されるpalworld用ゾーンで合計2ゾーン)、合計で月額約 6〜7ドル程度
+- Fargate の使用料は 1 時間あたり $0.29072（4vCPU、16GB メモリ）。その他のコストは少なく済みます。
+- 4vCPU、16GBメモリ構成で20時間使用した場合、月額約 5.81 ドル程度
 
 ## クイックスタート
-ドメイン取得と Route 53 ゾーン設定、Discord アプリケーションの作成、2 つの手動準備が必要です。
+手動での準備は Discord アプリケーションの作成だけです。
 以降は AWS CloudShell 上で cdk よりデプロイします。
 
 ローカル環境に追加のソフトウェアや、開発ツールのインストールは不要です。
 
-### 1. Route 53
-ドメインは取得済み。ホストゾーンはRoute53で作成済みであること。
-
-![route53](docs/route53.png)
-
-### 2. Discord アプリケーションの作成
+### 1. Discord アプリケーションの作成
 
 起動コマンドと通知の受け口として、Discord アプリケーションを作成します。
 
@@ -79,7 +75,7 @@ AWS の都合で実行中に中断される可能性はありますが、watchdo
 5. Discord クライアントの「設定 → 詳細設定 → 開発者モード」を有効にし、サーバー名を右クリックして **サーバー ID**（ギルド ID）をコピーします。
 6. 通知を受け取るチャンネルの「連携サービス → ウェブフック」で Webhook（チャンネルへの投稿用 URL）を作成し、**Webhook URL** を控えます。
 
-### 3. コンフィグの設定とデプロイ
+### 2. コンフィグの設定とデプロイ
 AWS CloudShell のみでデプロイが可能です。
 
 ![cloudshell](docs/cloudshell.png)
@@ -100,7 +96,6 @@ vi .env
 
 **必須フィールド**
 
-- **DOMAIN_NAME** : ドメイン名
 - **DISCORD_PUBLIC_KEY** ： Discord アプリケーションの Public Key。「General Information」画面で確認できます。
 - **DISCORD_GUILD_ID** ： スラッシュコマンドの実行を許可する Discord サーバーの ID。
 - **ADMIN_PASSWORD** ： Palworld の AdminPassword。watchdog が REST API（HTTP ベースの管理用 API）で接続ユーザーを確認するために、コンテナ内でのみ使用されます。
@@ -110,7 +105,6 @@ vi .env
 **.env** の例
 ```
 # Required
-DOMAIN_NAME                   = example.net
 DISCORD_PUBLIC_KEY            = 3717e9b6247e0a5e9db9e0e70d842c3a...
 DISCORD_GUILD_ID              = 1234567890123456789
 ADMIN_PASSWORD                = worldofpaladmin
@@ -118,11 +112,11 @@ SERVER_PASSWORD               = worldofpal
 SERVER_REGION                 = ap-northeast-1
 ```
 
-控えておいた Webhook URL を SSM Parameter Store（AWS の設定値保管サービス）へ登録します。
+控えておいた Webhook URL を、SERVER_REGION と同じリージョンの SSM Parameter Store（AWS の設定値保管サービス）へ登録します。
 CloudFormation（AWS のリソースをテンプレートから作成するサービス）は SecureString（暗号化された文字列パラメータ）を作成できないため、この 1 件だけ手動で登録します。
 
 ```
-aws ssm put-parameter --region us-east-1 \
+aws ssm put-parameter --region ap-northeast-1 \
   --name /palworld/discord/webhook-url --type SecureString \
   --value 'https://discord.com/api/webhooks/...'
 ```
@@ -139,9 +133,9 @@ pnpm install
 pnpm run build && pnpm run deploy
 ```
 
-デプロイ完了時に `palworld-domain-stack` が出力する **DiscordInteractionsEndpointUrl** の値（Lambda Function URL、Lambda に直接付与できる HTTPS エンドポイント）を控えます。
+デプロイ完了時に `palworld-server-stack` が出力する **DiscordInteractionsEndpointUrl** の値（Lambda Function URL、Lambda に直接付与できる HTTPS エンドポイント）を控えます。
 
-### 4. Discord との接続
+### 3. Discord との接続
 
 デプロイした受け口を Discord アプリケーションに設定し、スラッシュコマンドを登録します。
 
@@ -158,15 +152,17 @@ DISCORD_GUILD_ID=<サーバー ID> \
 コマンドは登録したサーバー専用で、既定ではサーバー管理者だけが実行できます。
 実行を許可するロールやメンバーを増やす場合は、Discord の「サーバー設定 → 連携サービス」で該当コマンドに追加します。
 
-### 5. Palworld Dedicated Server を起動する
+### 4. Palworld Dedicated Server を起動する
 
 Discord のチャンネルで `/start` を実行します。
 
 数分後、Webhook を設定したチャンネルに起動完了のメッセージが届き、接続できるようになります。
+メッセージに載っているアドレス（IP:ポート番号）をパルワールドのサーバーリストに入力して接続します。
+IP アドレスは起動のたびに変わるため、毎回最新の通知のアドレスを入力してください。
 
 ```
-# パルワールドへ接続するサーバーとパスワードの例
-palworld.example.net:8211
+# 起動通知と接続パスワードの例
+🟢 palworld-server is online at 203.0.113.10:8211
 password: worldofpal
 ```
 
@@ -190,5 +186,4 @@ AWS の料金通知を利用することをおすすめします!! [Billing Aler
 
 [Discord Developer Portal]: https://discord.com/developers/applications
 [aws estimate]: https://calculator.aws/#/estimate?id=ebd1972b24b7d393610389a0017d3e1f8df2ed56
-[dns served from route 53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-configuring.html
 [billing alert]: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html

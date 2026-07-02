@@ -14,10 +14,10 @@ Linux friends should be able to adapt this to their needs.
 
 1. [Open an AWS Account]
 2. [Create an Admin IAM User] (No access key required).
-3. [Pick](https://domains.google) [a](https://namecheap.com) [registrar](https://networksolutions.com) [and](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-register.html) [register](https://domain.com) [a](https://register.com) [domain](https://godaddy.com) [name](https://enom.com).
-4. [Create a public hosted zone] for your domain name in Route 53.
-5. [Change the DNS servers] for your new domain to the ones listed in the Route 53 console from step 5.
-6. See the quick setup [Quick Start](https://github.com/coni524/palworld-ondemand?tab=readme-ov-file#quick-start)
+3. See the quick setup [Quick Start](https://github.com/coni524/palworld-ondemand?tab=readme-ov-file#quick-start)
+
+No domain name is required: the server's public IP address (which changes on
+every launch) is announced in the Discord startup notification as `IP:port`.
 
 ## Additional Configuration
 
@@ -29,8 +29,6 @@ set in `.env`.
 
 | Config                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Default              |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| DOMAIN_NAME                   | **Required** Domain name of existing Route53 Hosted Zone.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | --                   |
-| SUBDOMAIN_PART                | Name of the subdomain part to be used for creating a delegated hosted zone (palworld.example.com) and an NS record on your existing (example.com) hosted zone. This subdomain should not already be in use.                                                                                                                                                                                                                                                                                                                                               | `palworld`          |
 | SERVER_REGION                 | The AWS region to deploy your palworld server in.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | `us-east-1`          |
 | STARTUP_MINUTES               | Number of minutes to wait for a connection after starting before terminating                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `10`                 |
 | SHUTDOWN_MINUTES              | Number of minutes to wait after the last client disconnects before terminating                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `20`                 |
@@ -48,10 +46,10 @@ set in `.env`.
 
 Beyond the two `DISCORD_*` values above, the Discord integration needs two one-time manual steps (see the [Quick Start](../README.md#quick-start) for the full walkthrough):
 
-- Store the channel webhook URL in SSM Parameter Store — CloudFormation cannot create SecureString parameters:
+- Store the channel webhook URL in SSM Parameter Store in your `SERVER_REGION` — CloudFormation cannot create SecureString parameters:
 
   ```bash
-  aws ssm put-parameter --region us-east-1 \
+  aws ssm put-parameter --region <SERVER_REGION> \
     --name /palworld/discord/webhook-url --type SecureString \
     --value 'https://discord.com/api/webhooks/...'
   ```
@@ -70,10 +68,8 @@ Note: Unless you changed the related configuration values, **running this script
 will delete everything deployed by this template including your palworld server
 data**.
 
-Alternatively, you can delete the `palworld-server-stack` first, then the
-`palworld-domain-stack` from the [AWS Console](https://console.aws.amazon.com/cloudformation/).
-
-Note: the Route53 A record will need to be manually reset to 192.168.1.1 in order for CDK to properly destroy the resources.  This will be fixed later.
+Alternatively, you can delete the `palworld-server-stack` from the
+[AWS Console](https://console.aws.amazon.com/cloudformation/).
 
 ## Troubleshooting
 
@@ -103,28 +99,10 @@ TASK_CPU                      = 2048
 
 See [Invalid CPU or memory value specified](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html) for more details
 
-### The specified hosted zone does not exist
-
-**Error Message:**
-
-> The specified hosted zone does not exist. (Service: AmazonRoute53; Status Code: 404; Error Code: NoSuchHostedZone;...
-
-**Cause:**
-
-CDK is unable to find a Hosted Zone created with the domain matching your value
-set to `DOMAIN_NAME`.
-
-**Troubleshoot:**
-
-Check the [Hosted Zones](https://console.aws.amazon.com/route53/v2/hostedzones#)
-tab in the AWS Console and make sure the configuration value set for `DOMAIN_NAME`
-matches the domain name found in the console.
-
 ### cdk destroy fails
 
 Most CDK destroy failures can be resolved by running it a second time.  Other reasons may include:
 
-- Did you reset the Route53 A record back to 192.168.1.1?  This is a temporary problem but currently required.  If you attempted destroy before doing this then just delete the record and run destroy again.
 - Is your task still running?
 - Any manual changes in the console may require manual deletion or changeback for destroy to work properly
 
@@ -133,8 +111,6 @@ Most CDK destroy failures can be resolved by running it a second time.  Other re
   [Install AWS CLI]: <https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html>
   [Create an Admin IAM User]: <https://docs.aws.amazon.com/IAM/latest/UserGuide/getting-started_create-admin-group.html>
   [configure it]: <https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html>
-  [Create a public hosted zone]: <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/CreatingHostedZone.html>
-  [Change the DNS servers]: <https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/migrate-dns-domain-inactive.html#migrate-dns-update-domain-inactive>
   [NodeJS]: <https://nodejs.org/en/download/>
   [Git]: <https://git-scm.com/download/win>
   [Usage and Customization]: <https://github.com/doctorray117/palworld-ondemand#usage-and-customization>

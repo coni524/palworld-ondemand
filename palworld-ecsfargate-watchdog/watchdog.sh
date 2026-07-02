@@ -4,13 +4,12 @@
 
 [ -n "$CLUSTER" ] || { echo "CLUSTER env variable must be set to the name of the ECS cluster" ; exit 1; }
 [ -n "$SERVICE" ] || { echo "SERVICE env variable must be set to the name of the service in the $CLUSTER cluster" ; exit 1; }
-[ -n "$SERVERNAME" ] || { echo "SERVERNAME env variable must be set to the full A record in Route53 we are updating" ; exit 1; }
-[ -n "$DNSZONE" ] || { echo "DNSZONE env variable must be set to the Route53 Hosted Zone ID" ; exit 1; }
 [ -n "$STARTUPMIN" ] || { echo "STARTUPMIN env variable not set, defaulting to a 10 minute startup wait" ; STARTUPMIN=10; }
 [ -n "$SHUTDOWNMIN" ] || { echo "SHUTDOWNMIN env variable not set, defaulting to a 20 minute shutdown wait" ; SHUTDOWNMIN=20; }
 [ -n "$ADMIN_PASSWORD" ] || ADMIN_PASSWORD="$RCONPASSWORD"  ## backward compatibility with the pre-REST-API variable name
 [ -n "$ADMIN_PASSWORD" ] || { echo "The ADMIN_PASSWORD environment variable must be set to AdminPassword." ; exit 1; }
 [ -n "$RESTAPIPORT" ] || RESTAPIPORT=8212
+[ -n "$GAMEPORT" ] || GAMEPORT=8211
 
 ## Player count via the official REST API (RCON is deprecated by Palworld and
 ## breaks on multi-byte player names). Prints 0 if the API is unreachable.
@@ -27,8 +26,10 @@ function player_count ()
 ## the topic forwards them to a Discord channel webhook.
 function send_notification ()
 {
-  [ "$1" = "startup" ] && MESSAGETEXT="🟢 ${SERVICE} is online at ${SERVERNAME}"
-  [ "$1" = "shutdown" ] && MESSAGETEXT="🔴 Shutting down ${SERVICE} at ${SERVERNAME}"
+  ## There is no fixed DNS name; players connect to the task's public IP,
+  ## which changes on every launch, so the startup message carries it.
+  [ "$1" = "startup" ] && MESSAGETEXT="🟢 ${SERVICE} is online at ${PUBLICIP}:${GAMEPORT}"
+  [ "$1" = "shutdown" ] && MESSAGETEXT="🔴 Shutting down ${SERVICE}"
 
   [ -n "$SNSTOPIC" ] && \
   echo "SNS topic set, sending $1 message" && \
@@ -59,34 +60,9 @@ echo I believe our task id is $TASK
 ENI=$(aws ecs describe-tasks --cluster $CLUSTER --tasks $TASK --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value | [0]" --output text)
 echo I believe our eni is $ENI
 
-## get public ip address from EC2
+## get public ip address from EC2 (announced in the startup notification)
 PUBLICIP=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
 echo "I believe our public IP address is $PUBLICIP"
-
-## update public dns record
-echo "Updating DNS record for $SERVERNAME to $PUBLICIP"
-## prepare json file
-cat << EOF > palworld-dns.json
-{
-  "Comment": "Fargate Public IP change for Palworld Server",
-  "Changes": [
-    {
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "$SERVERNAME",
-        "Type": "A",
-        "TTL": 30,
-        "ResourceRecords": [
-          {
-            "Value": "$PUBLICIP"
-          }
-        ]
-      }
-    }
-  ]
-}
-EOF
-aws route53 change-resource-record-sets --hosted-zone-id $DNSZONE --change-batch file://palworld-dns.json
 
 # Wait for Palworld server to start
 echo "Determining Palworld based on listening port..."
@@ -94,7 +70,7 @@ echo "If we are stuck here, the palworld container probably failed to start.  Wa
 COUNTER=0
 while true
 do
-  netstat -aun | grep :8211 && break
+  netstat -aun | grep :$GAMEPORT && break
   netstat -aun | grep :27015 && break
   sleep 1
   COUNTER=$(($COUNTER + 1))
