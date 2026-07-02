@@ -43,11 +43,11 @@
 ![基本的なワークフロー](docs/diagrams/aws_architecture.drawio.png)
 
 ## コスト内訳
-USE_FARGATE_SPOTをtrueに設定すると、Fargate SpotはX86_64アーキテクチャで起動します。
+サーバーは常に x86_64 アーキテクチャの Fargate Spot（AWS の空きキャパシティを通常より安価に利用できる購入オプション）で起動します。
+Palworld のサーバーバイナリが x86_64 専用であるため、ARM64 は使用しません。
 
-USE_FARGATE_SPOTがfalseの場合、Fargateは通常のARM64アーキテクチャでブートします。
-
-これにより、SPOT Fargateを使用する場合は最大70%、ARM64を使用する場合は通常のFargateを使用するX86_64と比較して最大20%のコスト削減が可能です。
+Spot の料金は通常の Fargate より最大 70% 安くなります。
+AWS の都合で実行中に中断される可能性はありますが、watchdog が中断通知（SIGTERM）を受け取ってサーバーを安全に停止します。
 
 ノート：https://docs.aws.amazon.com/ja_jp/AmazonECS/latest/developerguide/fargate-capacity-providers.html
 
