@@ -33,7 +33,7 @@ export class BillingAlertStack extends Stack {
         path.resolve(__dirname, '../../lambda/billing_report')
       ),
       handler: 'lambda_function.lambda_handler',
-      runtime: lambda.Runtime.PYTHON_3_11,
+      runtime: lambda.Runtime.PYTHON_3_13,
       environment: {
         SNS_TOPIC_ARN: billingAlertTopic.topicArn,
       },

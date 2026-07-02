@@ -1,4 +1,10 @@
-import { custom_resources as cr, aws_iam as iam, Duration } from 'aws-cdk-lib';
+import {
+  custom_resources as cr,
+  aws_iam as iam,
+  aws_logs as logs,
+  Duration,
+  RemovalPolicy,
+} from 'aws-cdk-lib';
 import { RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
 
@@ -54,7 +60,10 @@ export class CWGlobalResourcePolicy extends cr.AwsCustomResource {
       policy: cr.AwsCustomResourcePolicy.fromSdkCalls({
         resources: cr.AwsCustomResourcePolicy.ANY_RESOURCE,
       }),
-      logRetention: RetentionDays.THREE_DAYS,
+      logGroup: new logs.LogGroup(scope, `${name}Logs`, {
+        retention: RetentionDays.THREE_DAYS,
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
     });
   }
 }
