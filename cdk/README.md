@@ -54,7 +54,7 @@ set in `.env`.
 To remove all of the resources that were deployed on the deploy script run the following command:
 
 ```bash
-npm run destroy
+pnpm run destroy
 ```
 
 Note: Unless you changed the related configuration values, **running this script
