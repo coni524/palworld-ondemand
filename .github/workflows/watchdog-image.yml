@@ -9,6 +9,9 @@ on:
       - '.github/workflows/watchdog-image.yml'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 env:
   IMAGE_NAME: coni524/palworld-ecsfargate-watchdog
 
