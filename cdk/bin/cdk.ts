@@ -19,8 +19,8 @@ if (!config.domainName) {
 const domainStack = new DomainStack(app, 'palworld-domain-stack', {
   env: {
     /**
-     * Because we are relying on Route 53+CloudWatch to invoke the Lambda function,
-     * it _must_ reside in the N. Virginia (us-east-1) region.
+     * The domain stack owns the SSM parameters that the server stack reads
+     * cross-region, so it is pinned to a fixed region (us-east-1).
      */
     region: constants.DOMAIN_STACK_REGION,
     /* Account must be specified to allow for hosted zone lookup */

@@ -15,16 +15,9 @@ export const resolveConfig = (): StackConfig => ({
   taskMemory: +(process.env.TASK_MEMORY || 2048),
   vpcId: process.env.VPC_ID || '',
   //snsEmailAddress: process.env.SNS_EMAIL_ADDRESS || '',
-  twilio: {
-    phoneFrom: process.env.TWILIO_PHONE_FROM || '',
-    phoneTo: process.env.TWILIO_PHONE_TO || '',
-    accountId: process.env.TWILIO_ACCOUNT_ID || '',
-    authCode: process.env.TWILIO_AUTH_CODE || '',
-  },
-  slack: {
-    slackChannelName: process.env.SLACK_CHANNEL_NAME || 'Palworld',
-    slackWorkspaceId: process.env.SLACK_WORKSPACE_ID || '',
-    slackChannelId: process.env.SLACK_CHANNEL_ID || '',
+  discord: {
+    publicKey: process.env.DISCORD_PUBLIC_KEY || '',
+    guildId: process.env.DISCORD_GUILD_ID || '',
   },
   palworld: {
     adminPassword: process.env.ADMIN_PASSWORD || 'worldofpaladmin',

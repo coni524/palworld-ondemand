@@ -20,9 +20,9 @@
   - [コスト内訳](#コスト内訳)
   - [クイックスタート](#クイックスタート)
     - [1. Route 53](#1-route-53)
-    - [2. AWS Chatbot](#2-aws-chatbot)
+    - [2. Discord アプリケーションの作成](#2-discord-アプリケーションの作成)
     - [3. コンフィグの設定とデプロイ](#3-コンフィグの設定とデプロイ)
-    - [4. Slackエイリアスの設定](#4-slackエイリアスの設定)
+    - [4. Discord との接続](#4-discord-との接続)
     - [5. Palworld Dedicated Server を起動する](#5-palworld-dedicated-server-を起動する)
 - [その他](#その他)
   - [README テンプレート](#readme-テンプレート)
@@ -36,11 +36,13 @@
 - 独自ドメイン (お名前.com や ValueDomain などで取得するか 無料で運用できる Freenom を利用しても良いかもしれません)
 - 所有するドメイン名に対してRoute53ゾーンの作成が完了していること [DNS served from Route 53]
 - パルワールドのクライアント
-- Slack と連携済みの AWS Chatbot [Get started with Slack]
+- Discord のサーバー（ギルド）。アプリケーションの追加とスラッシュコマンドの登録に管理権限が必要です。
 
 ## 構成図
 
 ![基本的なワークフロー](docs/diagrams/aws_architecture.drawio.png)
+
+（構成図は Slack + AWS Chatbot 構成当時のものです。起動導線は Discord へ移行済みで、図は追って更新します。）
 
 ## コスト内訳
 サーバーは常に x86_64 アーキテクチャの Fargate Spot（AWS の空きキャパシティを通常より安価に利用できる購入オプション）で起動します。
@@ -56,7 +58,8 @@ AWS の都合で実行中に中断される可能性はありますが、watchdo
 - 4vCPU、16GBメモリ構成で20時間使用した場合、月額約5.81ドル、DNSゾーンに1ドル(1つのゾーンと本CDKで作成されるpalworld用ゾーンで合計2ゾーン)、合計で月額約 6〜7ドル程度
 
 ## クイックスタート
-ドメイン取得、Route 53 ゾーン設定、AWS Chatbot と Slack の連携設定と、３つの手動設定が必要です。以降は AWS CloudShell 上で cdk よりデプロイします。
+ドメイン取得と Route 53 ゾーン設定、Discord アプリケーションの作成、2 つの手動準備が必要です。
+以降は AWS CloudShell 上で cdk よりデプロイします。
 
 ローカル環境に追加のソフトウェアや、開発ツールのインストールは不要です。
 
@@ -65,10 +68,16 @@ AWS の都合で実行中に中断される可能性はありますが、watchdo
 
 ![route53](docs/route53.png)
 
-### 2. AWS Chatbot
-既存の Slack と　AWS Chatbot を連携させます。[Get started with Slack]
+### 2. Discord アプリケーションの作成
 
-![chatbot](docs/chatbot.png)
+起動コマンドと通知の受け口として、Discord アプリケーションを作成します。
+
+1. [Discord Developer Portal] の「New Application」からアプリケーションを作成します。
+2. 「General Information」画面の **Application ID** と **Public Key**（署名検証用の公開鍵）を控えます。
+3. 「Bot」画面でボットを追加し、**Bot Token**（ボットの認証トークン）を控えます。トークンは後述のコマンド登録スクリプトでのみ使用し、AWS には保存しません。
+4. 「Installation」画面のインストールリンクを使い、アプリケーションを自分の Discord サーバー（ギルド）へ追加します。スコープに `applications.commands` が必要です。
+5. Discord クライアントの「設定 → 詳細設定 → 開発者モード」を有効にし、サーバー名を右クリックして **サーバー ID**（ギルド ID）をコピーします。
+6. 通知を受け取るチャンネルの「連携サービス → ウェブフック」で Webhook（チャンネルへの投稿用 URL）を作成し、**Webhook URL** を控えます。
 
 ### 3. コンフィグの設定とデプロイ
 AWS CloudShell のみでデプロイが可能です。
@@ -91,22 +100,31 @@ vi .env
 
 **必須フィールド**
 
-- **DOMAIN_NAME** : ドメイン名 
-- **SLACK_WORKSPACE_ID** ： AWS Chatbot Workspace ID
-- **SLACK_CHANNEL_ID** ： Slack チャンネル ID、Slack チャンネルの View Channel defails より参照できます。
-- **ADMIN_PASSWORD** ： RCON パスワード、接続ユーザーチェックのためにコンテナ内でのみ使用される。
-- **SERVER_PASSWORD** ： Palworld Password, Palworldへのクライアント接続に必要なパスワード。
+- **DOMAIN_NAME** : ドメイン名
+- **DISCORD_PUBLIC_KEY** ： Discord アプリケーションの Public Key。「General Information」画面で確認できます。
+- **DISCORD_GUILD_ID** ： スラッシュコマンドの実行を許可する Discord サーバーの ID。
+- **ADMIN_PASSWORD** ： Palworld の AdminPassword。watchdog が REST API（HTTP ベースの管理用 API）で接続ユーザーを確認するために、コンテナ内でのみ使用されます。
+- **SERVER_PASSWORD** ： Palworld へのクライアント接続に必要なパスワード。
 - **SERVER_REGION** ： Palworld 専用サーバーを起動するリージョン (例: 最寄りのリージョンを選択)
 
 **.env** の例
 ```
 # Required
 DOMAIN_NAME                   = example.net
-SLACK_WORKSPACE_ID            = T07RLAJDF
-SLACK_CHANNEL_ID              = C06J8SWSKDJ
-ADMIN_PASSWORD                = worldofpalrcon
+DISCORD_PUBLIC_KEY            = 3717e9b6247e0a5e9db9e0e70d842c3a...
+DISCORD_GUILD_ID              = 1234567890123456789
+ADMIN_PASSWORD                = worldofpaladmin
 SERVER_PASSWORD               = worldofpal
 SERVER_REGION                 = ap-northeast-1
+```
+
+控えておいた Webhook URL を SSM Parameter Store（AWS の設定値保管サービス）へ登録します。
+CloudFormation（AWS のリソースをテンプレートから作成するサービス）は SecureString（暗号化された文字列パラメータ）を作成できないため、この 1 件だけ手動で登録します。
+
+```
+aws ssm put-parameter --region us-east-1 \
+  --name /palworld/discord/webhook-url --type SecureString \
+  --value 'https://discord.com/api/webhooks/...'
 ```
 
 pnpm のインストール（インストール済みならスキップ）
@@ -121,36 +139,30 @@ pnpm install
 pnpm run build && pnpm run deploy
 ```
 
-### 4. Slackエイリアスの設定
+デプロイ完了時に `palworld-domain-stack` が出力する **DiscordInteractionsEndpointUrl** の値（Lambda Function URL、Lambda に直接付与できる HTTPS エンドポイント）を控えます。
 
-awsをSlackチャンネルに招待する。
+### 4. Discord との接続
+
+デプロイした受け口を Discord アプリケーションに設定し、スラッシュコマンドを登録します。
+
+1. [Discord Developer Portal] の「General Information」画面で、**Interactions Endpoint URL** に控えた URL を設定して保存します。保存時に Discord が検証リクエストを送るため、デプロイ完了後に設定してください。
+2. スラッシュコマンドを登録します。手元の端末か CloudShell で次を実行します。
 
 ```
-/invite @aws
+DISCORD_APP_ID=<Application ID> \
+DISCORD_BOT_TOKEN=<Bot Token> \
+DISCORD_GUILD_ID=<サーバー ID> \
+./scripts/register_discord_commands.sh
 ```
 
-Slackでエイリアスコマンドを作成する。"--function-name "には"...LauncherLambda... "というFunction名をus-east-1にセットして入力する。"--region "はus-east-1に固定。
-
-```
-@aws alias create palworld lambda invoke --function-name palworld-domain-stack-LauncherLambda56F011B7-DDFHHDNH8f3 --region us-east-1 --payload {}
-```
-
-![slack alias](docs/slackalias.png)
+コマンドは登録したサーバー専用で、既定ではサーバー管理者だけが実行できます。
+実行を許可するロールやメンバーを増やす場合は、Discord の「サーバー設定 → 連携サービス」で該当コマンドに追加します。
 
 ### 5. Palworld Dedicated Server を起動する
 
-Slackでコマンドを入力
+Discord のチャンネルで `/start` を実行します。
 
-```
-@aws run palworld
-```
-
-Slackから応答があるので、"[Run] command "を押す。
-
-![run palworld](docs/runpalworld.png)
-
-
-数分後、Slack に起動完了のメッセージが表示され、接続できるようになります。
+数分後、Webhook を設定したチャンネルに起動完了のメッセージが届き、接続できるようになります。
 
 ```
 # パルワールドへ接続するサーバーとパスワードの例
@@ -160,7 +172,7 @@ password: worldofpal
 
 - 起動直後から10分間クライアントからの接続がない場合、システムは自動的に停止します。
 - クライアントからの接続後、20分間接続ユーザがいないことを検知すると自動的に停止します。
-- 6時間ごとに当月のAWS使用量の合計がSlackに通知されます。
+- 6時間ごとに当月のAWS使用額の合計が Discord に通知されます。
 
 # その他
 
@@ -176,7 +188,7 @@ AWS の料金通知を利用することをおすすめします!! [Billing Aler
 
 不具合やコメント/プルリクなどありましたらぜひお寄せください。
 
-[Get started with Slack]: https://docs.aws.amazon.com/chatbot/latest/adminguide/slack-setup.html
+[Discord Developer Portal]: https://discord.com/developers/applications
 [aws estimate]: https://calculator.aws/#/estimate?id=ebd1972b24b7d393610389a0017d3e1f8df2ed56
 [dns served from route 53]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-configuring.html
 [billing alert]: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html

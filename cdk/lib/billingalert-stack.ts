@@ -5,13 +5,13 @@ import {
   Duration,
   aws_iam as iam,
   aws_sns as sns,
-  aws_ssm as ssm,
 } from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
+import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
-import { constants } from './constants';
+import { DiscordNotificationForwarder } from './discord-notification-forwarder';
 import { StackConfig } from './types';
 
 interface BillingAlertStackProps extends StackProps {
@@ -26,6 +26,15 @@ export class BillingAlertStack extends Stack {
 
     // Create SNS topic
     const billingAlertTopic = new sns.Topic(this, 'BillingAlertTopic');
+
+    // Forward billing reports published to the topic to the Discord webhook
+    const notificationForwarder = new DiscordNotificationForwarder(
+      this,
+      'DiscordNotificationForwarder'
+    );
+    billingAlertTopic.addSubscription(
+      new subscriptions.LambdaSubscription(notificationForwarder.handler)
+    );
 
     // Create Lambda function
     const billingInfoLambda = new lambda.Function(this, 'BillingInfoLambda', {
@@ -56,12 +65,5 @@ export class BillingAlertStack extends Stack {
       enabled: config.billingAlert,
     });
     rule.addTarget(new targets.LambdaFunction(billingInfoLambda));
-
-    new ssm.StringParameter(this, 'BiliingAlertSnsTopicParam', {
-      allowedPattern: '.*',
-      description: 'Billing SNS Topic ARN',
-      parameterName: constants.BILLING_ALERT_SNS_TOPIC_SSM_PARAMETER,
-      stringValue: billingAlertTopic.topicArn || '',
-    });
   }
 }

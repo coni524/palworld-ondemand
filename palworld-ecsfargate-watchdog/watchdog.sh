@@ -23,26 +23,16 @@ function player_count ()
   echo "$count"
 }
 
+## Notifications are published to SNS as plain text; a Lambda subscribed to
+## the topic forwards them to a Discord channel webhook.
 function send_notification ()
 {
-  [ "$1" = "startup" ] && MESSAGETEXT="${SERVICE} is online at ${SERVERNAME}"
-  [ "$1" = "shutdown" ] && MESSAGETEXT="Shutting down ${SERVICE} at ${SERVERNAME}"
+  [ "$1" = "startup" ] && MESSAGETEXT="🟢 ${SERVICE} is online at ${SERVERNAME}"
+  [ "$1" = "shutdown" ] && MESSAGETEXT="🔴 Shutting down ${SERVICE} at ${SERVERNAME}"
 
-  ## Twilio Option
-  [ -n "$TWILIOFROM" ] && [ -n "$TWILIOTO" ] && [ -n "$TWILIOAID" ] && [ -n "$TWILIOAUTH" ] && \
-  echo "Twilio information set, sending $1 message" && \
-  curl --silent -XPOST -d "Body=$MESSAGETEXT" -d "From=$TWILIOFROM" -d "To=$TWILIOTO" "https://api.twilio.com/2010-04-01/Accounts/$TWILIOAID/Messages" -u "$TWILIOAID:$TWILIOAUTH"
-
-  # ## SNS Option
-  # [ -n "$SNSTOPIC" ] && \
-  # echo "SNS topic set, sending $1 message" && \
-  # aws sns publish --topic-arn "$SNSTOPIC" --message "$MESSAGETEXT"
-
-  ## SNS Option
   [ -n "$SNSTOPIC" ] && \
   echo "SNS topic set, sending $1 message" && \
-  printf -v sns_message '{"version": "1.0","source": "custom","content": {"description": ":information_source: %s"}}' "$MESSAGETEXT" && \
-  aws sns publish --topic-arn "$SNSTOPIC" --message "$sns_message"
+  aws sns publish --topic-arn "$SNSTOPIC" --message "$MESSAGETEXT"
 }
 
 function zero_service ()

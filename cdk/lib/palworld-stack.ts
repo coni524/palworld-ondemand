@@ -12,12 +12,10 @@ import {
   Arn,
   ArnFormat,
 } from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import { Runtime } from 'aws-cdk-lib/aws-lambda';
-import * as chatbot from 'aws-cdk-lib/aws-chatbot';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Construct } from 'constructs';
 import { constants } from './constants';
+import { DiscordNotificationForwarder } from './discord-notification-forwarder';
 import { SSMParameterReader } from './ssm-parameter-reader';
 import { StackConfig } from './types';
 //import { getPalworldServerConfig, isDockerInstalled } from './util';
@@ -223,70 +221,18 @@ export class PalworldStack extends Stack {
       }
     ).getParameterValue();
 
-    // Import ARN of ECS Task Role created in previous stack
-    const launcherLambdaArn = new SSMParameterReader(
-      this,
-      'launcherLambdaArn',
-      {
-        parameterName: constants.LAUNCHER_LAMBDA_ARN_SSM_PARAMETER,
-        region: constants.DOMAIN_STACK_REGION,
-      }
-    ).getParameterValue();
-    const launcherLambda = iam.Role.fromRoleArn(
-      this,
-      'LauncherLambdaArn',
-      launcherLambdaArn
-    );
-
-    // Create a role for Chatbot
-    const chatbotRole = new iam.Role(this, 'ChatbotRole', {
-      assumedBy: new iam.ServicePrincipal('chatbot.amazonaws.com'),
-    });
-
-    // Add permissions to Chatbot role
-    chatbotRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['lambda:InvokeFunction'],
-      resources: [launcherLambdaArn],
-    }));
-
-    // Import ARN of SNS Topic created in previous stack
-    const biliingAlertSnsTopicArn = new SSMParameterReader(
-      this,
-      'biliingAlertSnsTopic',
-      {
-        parameterName: constants.BILLING_ALERT_SNS_TOPIC_SSM_PARAMETER,
-        region: constants.DOMAIN_STACK_REGION,
-      }
-    ).getParameterValue();
-    const biliingAlertSnsTopic = sns.Topic.fromTopicArn(
-      this,
-      'ImportedBillingAlertsTopic',
-      biliingAlertSnsTopicArn
-    );
-
-    let snsTopicArn = '';
-    // Add Slack Channel Configuration
-    const slackChannel = new chatbot.SlackChannelConfiguration(
-      this,
-      'PalworldServerSlackChannel',
-      {
-        slackChannelConfigurationName: config.slack.slackChannelName,
-        slackWorkspaceId: config.slack.slackWorkspaceId,
-        slackChannelId: config.slack.slackChannelId,
-        role: chatbotRole
-      }
-    );
-
-    // Define SNS Topic
+    // Define SNS Topic for watchdog notifications (startup/shutdown)
     const snsTopic = new sns.Topic(this, 'PalworldServerSnsTopic');
     snsTopic.grantPublish(ecsTaskRole);
 
-    // Set up the SNS Topic as the notification topic for the Slack Channel
-    slackChannel.addNotificationTopic(snsTopic);
-    slackChannel.addNotificationTopic(biliingAlertSnsTopic);
-
-    // Set the SNS Topic ARN
-    snsTopicArn = snsTopic.topicArn;
+    // Forward notifications published to the topic to the Discord webhook
+    const notificationForwarder = new DiscordNotificationForwarder(
+      this,
+      'DiscordNotificationForwarder'
+    );
+    snsTopic.addSubscription(
+      new subscriptions.LambdaSubscription(notificationForwarder.handler)
+    );
 
     // const image = new DockerImageAsset(this, 'CDKDockerImage', {
     //   directory: path.join(__dirname, '../../palworld-ecsfargate-watchdog/'),
@@ -319,11 +265,7 @@ export class PalworldStack extends Stack {
           SERVICE: constants.SERVICE_NAME,
           DNSZONE: hostedZoneId,
           SERVERNAME: `${config.subdomainPart}.${config.domainName}`,
-          SNSTOPIC: snsTopicArn,
-          TWILIOFROM: config.twilio.phoneFrom,
-          TWILIOTO: config.twilio.phoneTo,
-          TWILIOAID: config.twilio.accountId,
-          TWILIOAUTH: config.twilio.authCode,
+          SNSTOPIC: snsTopic.topicArn,
           STARTUPMIN: config.startupMinutes,
           SHUTDOWNMIN: config.shutdownMinutes,
           ADMIN_PASSWORD: config.palworld.adminPassword,
@@ -368,22 +310,23 @@ export class PalworldStack extends Stack {
     serviceControlPolicy.attachToRole(ecsTaskRole);
 
     /**
-     * Add service control policy to the launcher lambda from the other stack
+     * Add service control policy to the Discord interactions lambda from the
+     * domain stack
      */
-    const launcherLambdaRoleArn = new SSMParameterReader(
+    const discordLambdaRoleArn = new SSMParameterReader(
       this,
-      'launcherLambdaRoleArn',
+      'discordLambdaRoleArn',
       {
-        parameterName: constants.LAUNCHER_LAMBDA_ROLE_ARN_SSM_PARAMETER,
+        parameterName: constants.DISCORD_LAMBDA_ROLE_ARN_SSM_PARAMETER,
         region: constants.DOMAIN_STACK_REGION,
       }
     ).getParameterValue();
-    const launcherLambdaRole = iam.Role.fromRoleArn(
+    const discordLambdaRole = iam.Role.fromRoleArn(
       this,
-      'LauncherLambdaRole',
-      launcherLambdaRoleArn
+      'DiscordLambdaRole',
+      discordLambdaRoleArn
     );
-    serviceControlPolicy.attachToRole(launcherLambdaRole);
+    serviceControlPolicy.attachToRole(discordLambdaRole);
 
     /**
      * This policy gives permission to our ECS task to update the A record

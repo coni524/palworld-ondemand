@@ -22,9 +22,9 @@ On-demand Palworld Dedicated Server in AWS
   - [Cost Breakdown](#cost-breakdown)
   - [Quick Start](#quick-start)
     - [1. Route53](#1-route53)
-    - [2. AWS Chatbot](#2-aws-chatbot)
+    - [2. Discord Application](#2-discord-application)
     - [3. Configuration and Deployment](#3-configuration-and-deployment)
-    - [4. Set Slack Alias](#4-set-slack-alias)
+    - [4. Connect Discord](#4-connect-discord)
     - [5. Run palworld](#5-run-palworld)
   - [Background](#background)
   - [Workflow](#workflow)
@@ -69,7 +69,6 @@ On-demand Palworld Dedicated Server in AWS
       - [Service won't launch task](#service-wont-launch-task)
       - [Containers won't switch to RUNNING state](#containers-wont-switch-to-running-state)
     - [Can't connect to palworld server](#cant-connect-to-palworld-server)
-    - [Not getting text messages](#not-getting-text-messages)
   - [Server starts randomly?](#server-starts-randomly)
 - [Other Stuff](#other-stuff)
   - [README Template](#readme-template)
@@ -83,11 +82,13 @@ On-demand Palworld Dedicated Server in AWS
 - A domain name with a public DNS provided by Route 53; there is no need to register the domain through Route 53.
 - The creation of a Route53 zone must be completed for the domain name you own. [DNS served from Route 53].
 - Palworld client
-- AWS Chatbot integrated with Slack. [Get started with Slack]
+- A Discord server (guild) where you can add an application and register slash commands.
 
 ## Diagram
 
 ![Basic Workflow](docs/diagrams/aws_architecture.drawio.png)
+
+(The diagram still shows the former Slack + AWS Chatbot setup. The launch path has moved to Discord; the diagram will be updated.)
 
 ## Cost Breakdown
 
@@ -113,12 +114,16 @@ The domain must have been acquired (not necessarily AWS) and the host zone must 
 
 ![route53](docs/route53.png)
 
-### 2. AWS Chatbot
+### 2. Discord Application
 
-![chatbot](docs/chatbot.png)
+Create a Discord application that receives the launch command and the notifications.
 
-AWS Chatbot must be fully integrated with existing Slack.
-[Get started with Slack]
+1. Create an application from `New Application` in the [Discord Developer Portal].
+2. Note the **Application ID** and the **Public Key** on the `General Information` page.
+3. Add a bot on the `Bot` page and note the **Bot Token** (used only by the command-registration script below; it is never stored in AWS).
+4. Install the application to your Discord server (guild) via the install link on the `Installation` page. The `applications.commands` scope is required.
+5. Enable `Settings > Advanced > Developer Mode` in your Discord client, right-click your server name, and copy the **Server ID** (guild ID).
+6. Create a webhook under `Integrations > Webhooks` in the channel that should receive notifications and note the **Webhook URL**.
 
 ### 3. Configuration and Deployment
 Deployment can be done using AWS CloudShell only.
@@ -141,9 +146,9 @@ vi .env
 
 **Required field**
 
-- **DOMAIN_NAME**: Domain name 
-- **SLACK_WORKSPACE_ID** : AWS Chatbot Workspace ID 
-- **SLACK_CHANNEL_ID**: Slack Channel ID, You can refer to it in the View Channel defails of the Slack channel
+- **DOMAIN_NAME**: Domain name
+- **DISCORD_PUBLIC_KEY**: Public Key of the Discord application, found on the `General Information` page
+- **DISCORD_GUILD_ID**: ID of the Discord server (guild) allowed to run the slash commands
 - **ADMIN_PASSWORD**: Palworld AdminPassword, used only inside the task for the watchdog to query player counts via the official REST API.
 - **SERVER_PASSWORD**: Palworld Password, Password required for client connection to Palworld
 - **SERVER_REGION**: Region in which to start Palworld Dedicated Server (e.g.choose a region close to you)
@@ -152,11 +157,19 @@ vi .env
 ```
 # Required
 DOMAIN_NAME                   = example.net
-SLACK_WORKSPACE_ID            = T07RLAJDF
-SLACK_CHANNEL_ID              = C06J8SWSKDJ
-ADMIN_PASSWORD                = worldofpalrcon
+DISCORD_PUBLIC_KEY            = 3717e9b6247e0a5e9db9e0e70d842c3a...
+DISCORD_GUILD_ID              = 1234567890123456789
+ADMIN_PASSWORD                = worldofpaladmin
 SERVER_PASSWORD               = worldofpal
 SERVER_REGION                 = ap-northeast-1
+```
+
+Store the webhook URL in SSM Parameter Store. CloudFormation cannot create SecureString parameters, so this single value is registered by hand:
+
+```
+aws ssm put-parameter --region us-east-1 \
+  --name /palworld/discord/webhook-url --type SecureString \
+  --value 'https://discord.com/api/webhooks/...'
 ```
 
 Install pnpm (skip if already installed)
@@ -171,36 +184,33 @@ pnpm install
 pnpm run build && pnpm run deploy
 ```
 
-### 4. Set Slack Alias
+When the deploy finishes, note the **DiscordInteractionsEndpointUrl** value (a Lambda Function URL) that `palworld-domain-stack` outputs.
 
-Invite @aws to join our Slack Channel.
+### 4. Connect Discord
+
+Point the Discord application at the deployed endpoint and register the slash command.
+
+1. On the `General Information` page of the [Discord Developer Portal], set **Interactions Endpoint URL** to the URL from the deploy output and save. Discord sends a verification request on save, so do this after the deploy has finished.
+2. Register the slash command from your terminal or CloudShell:
 
 ```
-/invite @aws
+DISCORD_APP_ID=<Application ID> \
+DISCORD_BOT_TOKEN=<Bot Token> \
+DISCORD_GUILD_ID=<Server ID> \
+./scripts/register_discord_commands.sh
 ```
 
-Create an alias command in Slack. For "--function-name", enter a Function name named "...LauncherLambda..." set to us-east-1. "--region" is fixed at us-east-1.
-
-```
-@aws alias create palworld lambda invoke --function-name palworld-domain-stack-LauncherLambda56F011B7-DDFHHDNH8f3 --region us-east-1 --payload {}
-```
-
-![slack alias](docs/slackalias.png)
+The command is registered only in your server and, by default, only server admins can run it. Grant additional roles or members under `Server Settings > Integrations`.
 
 ### 5. Run palworld
 
-Enter command in Slack
+Run the slash command in a channel of your Discord server:
 
 ```
-@aws run palworld
+/start
 ```
 
-You will get a response from Slack, press "[Run] command".
-
-![run palworld](docs/runpalworld.png)
-
-
-After a few minutes, you will see a message in Slack that the startup is complete and you can connect.
+After a few minutes, a message arrives in the webhook channel that the startup is complete and you can connect.
 
 ```
 e.g. 
@@ -210,7 +220,7 @@ password: worldofpal
 
 - The system automatically stops when there is no connection from a client for 10 minutes immediately after startup.
 - After a client connection, the system automatically stops when it detects no connected users for 20 minutes.
-- Every 6 hours you will receive a notification in Slack of your current month's AWS usage total.
+- Every 6 hours you will receive a notification in Discord of your current month's AWS usage total.
 
 ## Background
 
@@ -220,12 +230,12 @@ By using multiple AWS services, PALWORLD's servers automatically start up when t
 
 The process works as follows:
 
-1. run the command to start Palworld from Slack
-2. a **Lambda** function running via **AWS Chatbot** changes the existing **ECS Fargate** service to the desired task count of **1**.
+1. run the `/start` slash command in Discord
+2. Discord POSTs the interaction to a **Lambda** Function URL; the function verifies the request signature and changes the existing **ECS Fargate** service to the desired task count of **1**.
 3. **Fargate** starts two containers, **Palworld** and a watchdog, and updates the DNS records to the new IP.
-4. watchdog sends a notification via **Slack** when the server is ready.
+4. watchdog publishes to **SNS** when the server is ready, and a forwarder Lambda posts the notification to the **Discord** channel webhook.
 5. update the server list in **Palworld** and the server will be ready for connection
-6. after 10 minutes without a connection or after 20 minutes since the last client disconnected (customizable), the watchdog will set the desired task count to **zero**, shut down, and send a shutdown notification via Slack.
+6. after 10 minutes without a connection or after 20 minutes since the last client disconnected (customizable), the watchdog will set the desired task count to **zero**, shut down, and send a shutdown notification the same way.
 
 # Installation and Setup
 
@@ -326,10 +336,10 @@ def lambda_handler(event, context):
             desiredCount=1,
         )
         print("Updated desiredCount to 1")
-        return f"Updated desiredCount to 1 for {SERVICE}" # to Slack response.
+        return f"Updated desiredCount to 1 for {SERVICE}"
     else:
         print("desiredCount already at 1")
-        return f"desiredCount already at 1 for {SERVICE}" # to Slack response.
+        return f"desiredCount already at 1 for {SERVICE}"
 ```
 
 This file is also in this repository in the `lambda` folder. Change the region, cluster, or service on lines 3-5 if needed. Then, click the `Deploy` button. Switch back to your server region now so that we don't create anything in the wrong region later.
@@ -354,9 +364,9 @@ From your hosted zone, click `Configure query logging` on the top right. Then, c
 
 ## Optional SNS Notifications
 
-🚧 In this project, SNS Email notifications are changed to Slack notifications.
+🚧 In this project, SNS notifications are forwarded to a Discord channel webhook by a Lambda subscribed to the topic.
 
-You can receive a text or email or anything else you want to consume via Amazon SNS, if Twilio isn't your thing. This also allows this to be a 100% AWS solution.
+You can receive an email or anything else you want to consume via Amazon SNS. This also allows this to be a 100% AWS solution.
 
 From the SNS console, create a `Standard` topic called `palworld-notifications`. Also at your convenience, create a Subscription to the topic to a destination of your choice. Email is easy and free, SMS is beyond the scope of this documentation but there's plenty of resources out there to help you set it up.
 
@@ -555,14 +565,10 @@ Under `Advanced container configuration` make these changes:
   - `STARTUPMIN` : Number of minutes to wait for a connection after starting before terminating (default 10)
   - `SHUTDOWNMIN` : Number of minutes to wait after the last client disconnects before terminating (default 20)
   - `SNSTOPIC` : Full ARN of your SNS topic (if using SNS)
-  - `TWILIOFROM` : `+1XXXYYYZZZZ` (your twilio number)
-  - `TWILIOTO` : `+1XXXYYYZZZZ` (your cell phone to get a text on)
-  - `TWILIOAID` : Twilio account ID
-  - `TWILIOAUTH` : Twilio auth code
   - `ADMIN_PASSWORD` : Palworld AdminPassword (used for REST API Basic auth)
 
 
-If using Twilio to alert you when the server is ready and when it turns off, all four twilio variables must be specified. If publishing to an SNS topic, the `SNSTOPIC` variable must be specified.
+If publishing to an SNS topic, the `SNSTOPIC` variable must be specified.
 
 Click `Add` and then `Create` to create the task.
 
@@ -750,10 +756,6 @@ Check all of the above, but also ensure you're using an EFS Access Point with th
 
 Refresh. Wait a minute, especially the first launch. Check ECS to see that the containers are in the RUNNING state. Open the running task, go to the logs tab, select palworld and see if there are any errors on the logs. Did you make sure you opened the right port (8211 UDP and 27015 UDP) to the world in the task security group?? Security groups can be edited from both the VPC and the EC2 console.
 
-### Not getting text messages
-
-Are your Twilio vars valid? Do you have sufficient funds on your Twilio account? Check the logs on the watchdog container for any curl errors.
-
 ## Server starts randomly?
 
 🚧 In this project, invocation from DNS queries is disabled.
@@ -774,7 +776,7 @@ Set up a [Billing Alert]! You can get an email if your bill exceeds a certain am
 
 Open an issue, fork the repo, send me a pull request or a message.
 
-[Get started with Slack]: https://docs.aws.amazon.com/chatbot/latest/adminguide/slack-setup.html
+[Discord Developer Portal]: https://discord.com/developers/applications
 [finding your aws account id]: https://docs.aws.amazon.com/IAM/latest/UserGuide/console_account-alias.html#FindingYourAWSId
 [default vpc]: https://docs.aws.amazon.com/vpc/latest/userguide/default-vpc.html
 [aws estimate]: https://calculator.aws/#/estimate?id=ebd1972b24b7d393610389a0017d3e1f8df2ed56
