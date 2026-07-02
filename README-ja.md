@@ -17,6 +17,10 @@ Discord で `/start` を実行すると、サーバーが ECS Fargate Spot（AWS
 
 [English version](./README.md)
 
+## 構成図
+
+![構成図](docs/diagrams/aws_architecture.drawio.png)
+
 ## クイックスタート
 
 必要なものは、AWS アカウント、パルワールドのクライアント、管理権限を持つ Discord サーバー（ギルド）の 3 つです。

@@ -15,6 +15,10 @@ Run `/start` in Discord and the server comes up on ECS Fargate Spot; a few minut
 
 [日本語版](./README-ja.md)
 
+## Architecture
+
+![Architecture](docs/diagrams/aws_architecture.drawio.png)
+
 ## Quick Start
 
 You need an AWS account, a Palworld client, and a Discord server (guild) you administer. Everything below runs in AWS CloudShell, so no local tooling is required.
