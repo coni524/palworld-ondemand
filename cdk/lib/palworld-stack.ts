@@ -158,6 +158,9 @@ export class PalworldStack extends Stack {
         environment: {
           ADMIN_PASSWORD: config.palworld.adminPassword,
           SERVER_PASSWORD: config.palworld.serverPassword,
+          // The watchdog polls player counts via the official REST API
+          // (localhost only; the port is not exposed in the security group)
+          REST_API_ENABLED: 'true',
         },
         logging: config.debug
           ? new ecs.AwsLogDriver({
@@ -335,7 +338,7 @@ export class PalworldStack extends Stack {
           TWILIOAUTH: config.twilio.authCode,
           STARTUPMIN: config.startupMinutes,
           SHUTDOWNMIN: config.shutdownMinutes,
-          RCONPASSWORD: config.palworld.adminPassword,
+          ADMIN_PASSWORD: config.palworld.adminPassword,
         },
         logging: config.debug
           ? new ecs.AwsLogDriver({
