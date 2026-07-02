@@ -1,50 +1,22 @@
 import type { Protocol } from 'aws-cdk-lib/aws-ecs';
 import type { Port } from 'aws-cdk-lib/aws-ec2';
 
-interface TwilioConfig {
+interface DiscordConfig {
   /**
-   * Your twilio phone number.
+   * **Required**. The public key of the Discord application, used to verify
+   * the Ed25519 signature on incoming interactions. Found under
+   * General Information in the Discord Developer Portal. Not a secret.
    *
-   * @example
-   * `+1XXXYYYZZZZ`
+   * @example "3717e9b6247e0a5e9db9e0e70d842c3a..."
    */
-  phoneFrom: string;
+  publicKey: string;
   /**
-   * Phone number to receive text notifications at.
+   * **Required**. The ID of the Discord guild (server) allowed to run the
+   * slash commands. The Lambda rejects interactions from any other guild.
    *
-   * @example
-   * `+1XXXYYYZZZZ`
+   * @example "1234567890123456789"
    */
-  phoneTo: string;
-  /**
-   * Twilio account ID
-   */
-  accountId: string;
-  /**
-   * Twilio auth code
-   */
-  authCode: string;
-}
-
-interface SlackConfig {
-  /**
-   * The name of the Slack channel to send notifications to
-   * 
-   * @default "Palworld"
-   */
-  slackChannelName: string;
-  /**
-   * **Required**. The ID of the Slack workspace
-   * 
-   * @example "T01B2AB3C"
-   */
-  slackWorkspaceId: string;
-  /**
-   * **Required**.  The ID of the Slack channel
-   * 
-   * @example "C01B2AB3C"
-   */
-  slackChannelId: string;
+  guildId: string;
 }
 
 interface PalworldConfig {
@@ -141,8 +113,7 @@ export interface StackConfig {
    * email notifications each time the minecraft server is launched and ready.
    */
   //snsEmailAddress: string;
-  twilio: TwilioConfig;
-  slack: SlackConfig;
+  discord: DiscordConfig;
   palworld: PalworldConfig;
   /**
    * Setting Billin Alert Interval

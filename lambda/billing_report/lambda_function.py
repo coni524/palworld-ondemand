@@ -1,4 +1,3 @@
-import json
 import boto3
 import datetime
 import os
@@ -36,18 +35,13 @@ def get_cost_and_usage():
         return None
 
 def publish_to_sns(cost):
-    message = {
-        "version": "1.0",
-        "source": "custom",
-        "content": {
-            "description": f":moneybag: AWS cumulative cost for the month: ${cost:.2f} USD"
-        }
-    }
-    
+    # Plain text; a Lambda subscribed to the topic forwards it to Discord
+    message = f"💰 AWS cumulative cost for the month: ${cost:.2f} USD"
+
     try:
         response = sns.publish(
             TopicArn=sns_topic_arn,
-            Message=json.dumps(message)
+            Message=message
         )
         print(f"Message sent to SNS: {response}")
     except Exception as e:
