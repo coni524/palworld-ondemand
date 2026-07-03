@@ -17,7 +17,7 @@ Run `/start` in Discord and the server comes up on ECS Fargate Spot; a few minut
 
 ## Architecture
 
-![Architecture](docs/diagrams/aws_architecture.drawio.png)
+![Architecture](docs/diagrams/aws_architecture.svg)
 
 ## Quick Start
 

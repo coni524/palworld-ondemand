@@ -19,7 +19,7 @@ Discord で `/start` を実行すると、サーバーが ECS Fargate Spot（AWS
 
 ## 構成図
 
-![構成図](docs/diagrams/aws_architecture.drawio.png)
+![構成図](docs/diagrams/aws_architecture_ja.svg)
 
 ## クイックスタート
 
