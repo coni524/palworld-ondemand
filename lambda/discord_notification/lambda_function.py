@@ -18,6 +18,10 @@ import boto3
 
 WEBHOOK_URL_PARAMETER = os.environ['WEBHOOK_URL_PARAMETER']
 
+# Discord (Cloudflare) rejects urllib's default Python-urllib/3.x
+# User-Agent with 403, so every request must carry a custom one.
+USER_AGENT = 'palworld-ondemand (https://github.com/coni524/palworld-ondemand, 1.0)'
+
 ssm = boto3.client('ssm')
 _webhook_url = None
 
@@ -46,7 +50,7 @@ def lambda_handler(event, context):
         request = urllib.request.Request(
             get_webhook_url(),
             data=json.dumps({'content': extract_text(record['Sns']['Message'])}).encode(),
-            headers={'Content-Type': 'application/json'},
+            headers={'Content-Type': 'application/json', 'User-Agent': USER_AGENT},
             method='POST',
         )
         urllib.request.urlopen(request, timeout=10)

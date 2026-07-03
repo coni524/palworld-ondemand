@@ -28,6 +28,16 @@ SERVICE = os.environ['SERVICE']
 DISCORD_PUBLIC_KEY = os.environ['DISCORD_PUBLIC_KEY']
 DISCORD_GUILD_ID = os.environ['DISCORD_GUILD_ID']
 
+# Discord (Cloudflare) rejects urllib's default Python-urllib/3.x
+# User-Agent with 403, so every request must carry a custom one.
+USER_AGENT = 'palworld-ondemand (https://github.com/coni524/palworld-ondemand, 1.0)'
+
+# Created at module scope: the init phase runs with a full CPU burst, so
+# this keeps the synchronous handler inside Discord's 3-second limit even
+# on a cold start.
+lambda_client = boto3.client('lambda')
+ecs = boto3.client('ecs')
+
 
 def lambda_handler(event, context):
     if 'requestContext' in event:
@@ -73,7 +83,7 @@ def handle_interaction(event, context):
 
     # The ECS calls and the follow-up message happen in an async
     # self-invocation so the deferred response goes out immediately.
-    boto3.client('lambda').invoke(
+    lambda_client.invoke(
         FunctionName=context.invoked_function_arn,
         InvocationType='Event',
         Payload=json.dumps({
@@ -90,7 +100,6 @@ def handle_interaction(event, context):
 def start_server(event):
     """Scales the service to 1 and reports back via the interaction token."""
     # The Lambda runs in the same region as the ECS service.
-    ecs = boto3.client('ecs')
     response = ecs.describe_services(cluster=CLUSTER, services=[SERVICE])
     desired = response['services'][0]['desiredCount']
 
@@ -110,7 +119,7 @@ def start_server(event):
     request = urllib.request.Request(
         followup_url,
         data=json.dumps({'content': content}).encode(),
-        headers={'Content-Type': 'application/json'},
+        headers={'Content-Type': 'application/json', 'User-Agent': USER_AGENT},
         method='POST',
     )
     urllib.request.urlopen(request, timeout=10)
