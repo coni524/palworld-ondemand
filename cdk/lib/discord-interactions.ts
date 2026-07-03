@@ -83,6 +83,11 @@ export class DiscordInteractions extends Construct {
       handler: 'lambda_function.lambda_handler',
       runtime: lambda.Runtime.PYTHON_3_13,
       timeout: Duration.seconds(30),
+      /**
+       * CPU scales with memory, and this handler must answer Discord
+       * within 3 seconds even on a cold start; 128 MB took ~2.7s.
+       */
+      memorySize: 512,
       environment: {
         CLUSTER: constants.CLUSTER_NAME,
         SERVICE: constants.SERVICE_NAME,
