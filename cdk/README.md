@@ -56,7 +56,40 @@ Beyond the two `DISCORD_*` values above, the Discord integration needs two one-t
     --value 'https://discord.com/api/webhooks/...'
   ```
 
-- After deploying, set the `DiscordInteractionsEndpointUrl` stack output as the Interactions Endpoint URL of the Discord application, and register the guild slash command with [`scripts/register_discord_commands.sh`](../scripts/register_discord_commands.sh).
+- After deploying, set the `DiscordInteractionsEndpointUrl` stack output as the Interactions Endpoint URL of the Discord application, and register the guild slash commands with [`scripts/register_discord_commands.sh`](../scripts/register_discord_commands.sh).
+
+### Slash commands
+
+`register_discord_commands.sh` registers the full command set. `/start` scales
+the service up; every other command is backed by Palworld's official REST API
+and only works while the server is running. All commands are hidden from
+non-admins (`default_member_permissions: "0"`).
+
+| Command | What it does |
+|---|---|
+| `/start` | Start the on-demand server |
+| `/info` | Server name, version, description |
+| `/players` | List players currently online |
+| `/settings` | Show server settings |
+| `/metrics` | Server FPS, uptime, player count |
+| `/announce <message>` | Broadcast a message in-game |
+| `/kick <userid> [message]` | Kick a player |
+| `/ban <userid> [message]` | Ban a player |
+| `/unban <userid>` | Remove a ban |
+| `/save` | Save the world now |
+| `/shutdown [waittime] [message]` | Shut down after a grace period |
+| `/stop` | Force-stop immediately |
+
+`userid` is the Palworld user id (e.g. `steam_0123456789ABCDEF`), as shown by
+`/players`.
+
+The receiver Lambda lives outside the VPC and cannot reach the task's private
+IP, so REST calls are relayed through a VPC-internal **proxy Lambda** that only
+ever talks to the task's private `IP:8212`. The port is never exposed to the
+internet, and the admin password lives only in the proxy. The running task's
+private IP is published to the `/palworld/server/private-ip` SSM parameter by
+the watchdog on each startup — this needs no manual step (unlike the webhook
+SecureString above).
 
 ## Cleanup
 
