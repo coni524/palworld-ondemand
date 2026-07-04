@@ -1,6 +1,6 @@
 {
   "name": "palworld-ondemand",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "packageManager": "pnpm@11.9.0",
   "bin": {
     "cdk": "bin/cdk.js"
