@@ -93,7 +93,7 @@ When the deploy finishes, note the **DiscordInteractionsEndpointUrl** value that
 ### 3. Connect Discord
 
 1. On the `General Information` page of the [Discord Developer Portal], set **Interactions Endpoint URL** to the URL from the deploy output and save. Discord sends a verification request on save, so do this after the deploy has finished.
-2. Register the slash command:
+2. Register the slash commands:
 
 ```
 DISCORD_APP_ID=<Application ID> \
@@ -101,6 +101,8 @@ DISCORD_BOT_TOKEN=<Bot Token> \
 DISCORD_GUILD_ID=<Server ID> \
 ./scripts/register_discord_commands.sh
 ```
+
+This registers all 12 commands (see [Commands](#commands)) in your guild only. Every command is hidden from everyone except server admins by default (`default_member_permissions`); grant additional roles or members under `Server Settings > Integrations` afterwards.
 
 ### 4. Play
 
@@ -114,6 +116,27 @@ Add the address to the Palworld server list and connect with `SERVER_PASSWORD`. 
 
 The server stops itself after 10 minutes without a first connection, or 20 minutes after the last player leaves (both configurable).
 
+## Commands
+
+`/start` scales the ECS service up. The other 11 commands are backed by Palworld's official REST API and only work while the server is running; when it is stopped they reply that the server is offline. All commands are admin-only by default.
+
+| Command | What it does |
+|---|---|
+| `/start` | Start the on-demand server |
+| `/info` | Server name, version and description |
+| `/players` | List the players currently online |
+| `/settings` | Show the server settings |
+| `/metrics` | Server FPS, uptime and player count |
+| `/announce <message>` | Broadcast a message in-game |
+| `/kick <userid> [message]` | Kick a player by Palworld user id |
+| `/ban <userid> [message]` | Ban a player by Palworld user id |
+| `/unban <userid>` | Remove a ban |
+| `/save` | Save the world now |
+| `/shutdown [waittime] [message]` | Shut down after a grace period |
+| `/stop` | Force-stop the server immediately |
+
+The `userid` is the Palworld user id, e.g. `steam_0123456789ABCDEF`.
+
 ## Cost
 
 The server always runs on Fargate Spot (x86_64; the Palworld binary is x86_64-only), which is up to 70% cheaper than regular Fargate. AWS can reclaim Spot capacity at any time, but the watchdog traps the termination signal and shuts the server down safely.
@@ -125,9 +148,9 @@ The server always runs on Fargate Spot (x86_64; the Palworld binary is x86_64-on
 ## Security notes
 
 - The game ports (UDP 8211 and 27015) are open to the whole internet so that players can join; `SERVER_PASSWORD` is the only gate, so use one that cannot be guessed. To lock things down further, restrict the source IP ranges on the service security group after deploying.
-- `/start` is protected in three layers: the command is registered only in your guild, only server admins can run it by default (grant others under `Server Settings > Integrations`), and the Lambda verifies Discord's Ed25519 request signature plus the guild ID. The Function URL is public, but it rejects everything that does not come from Discord.
+- Every command is protected in three layers: it is registered only in your guild, only server admins can run it by default (grant others under `Server Settings > Integrations`), and the Lambda verifies Discord's Ed25519 request signature plus the guild ID. The Function URL is public, but it rejects everything that does not come from Discord.
 - Keep secrets out of the repository: `cdk/.env` holds the server passwords and is gitignored — do not commit it. The Bot Token is used once by the registration script and never stored in AWS. The webhook URL lives only in SSM Parameter Store as a SecureString.
-- `ADMIN_PASSWORD` never leaves the task: the management REST API listens on localhost only and its port is not opened in the security group.
+- The management REST API on port 8212 is never exposed to the internet. It is reached only through a VPC-internal proxy Lambda: the task security group opens 8212 to that Lambda's security group alone, and the proxy Lambda has no Function URL and no internet egress. `ADMIN_PASSWORD` is held only by the task and that proxy Lambda.
 
 ## Acknowledgements
 

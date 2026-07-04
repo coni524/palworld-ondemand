@@ -20,6 +20,7 @@ import { BillingAlert } from './billing-alert';
 import { constants } from './constants';
 import { DiscordInteractions } from './discord-interactions';
 import { DiscordNotificationForwarder } from './discord-notification-forwarder';
+import { RestApiProxy } from './rest-api-proxy';
 import { StackConfig } from './types';
 
 interface PalworldStackProps extends StackProps {
@@ -185,6 +186,19 @@ export class PalworldStack extends Stack {
       'Allow inbound traffic to Game Port'
     );
 
+    // VPC-internal Lambda that relays Discord slash commands to the task's
+    // REST API. Its security group is the only source allowed to reach 8212;
+    // the port is never opened to the internet.
+    const restApiProxy = new RestApiProxy(this, 'RestApiProxy', {
+      config,
+      vpc,
+    });
+    serviceSecurityGroup.addIngressRule(
+      restApiProxy.securityGroup,
+      ec2.Port.tcp(constants.REST_API_PORT),
+      'Allow REST API access from the proxy Lambda only'
+    );
+
     const palworldServerService = new ecs.FargateService(
       this,
       'FargateService',
@@ -265,6 +279,9 @@ export class PalworldStack extends Stack {
           STARTUPMIN: config.startupMinutes,
           SHUTDOWNMIN: config.shutdownMinutes,
           ADMIN_PASSWORD: config.palworld.adminPassword,
+          // The watchdog publishes the task's private IP here on startup so the
+          // receiver Lambda can hand it to the proxy Lambda.
+          PRIVATE_IP_SSM_PARAM: constants.PRIVATE_IP_SSM_PARAMETER,
         },
         logging: config.debug
           ? new ecs.AwsLogDriver({
@@ -273,6 +290,27 @@ export class PalworldStack extends Stack {
             })
           : undefined,
       }
+    );
+
+    // The watchdog writes the task's private IP to this SSM parameter on every
+    // startup (see watchdog.sh); grant only that one parameter, only Put.
+    const privateIpParameterArn = Arn.format(
+      {
+        service: 'ssm',
+        resource: 'parameter',
+        // The ARN separator already provides the leading slash of the name.
+        resourceName: constants.PRIVATE_IP_SSM_PARAMETER.replace(/^\//, ''),
+        arnFormat: ArnFormat.SLASH_RESOURCE_NAME,
+      },
+      this
+    );
+    ecsTaskRole.addToPrincipalPolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowPutPrivateIpParameter',
+        effect: iam.Effect.ALLOW,
+        actions: ['ssm:PutParameter'],
+        resources: [privateIpParameterArn],
+      })
     );
 
     const serviceControlPolicy = new iam.Policy(this, 'ServiceControlPolicy', {
@@ -313,7 +351,11 @@ export class PalworldStack extends Stack {
     const discordInteractions = new DiscordInteractions(
       this,
       'DiscordInteractions',
-      { config }
+      {
+        config,
+        restApiProxy: restApiProxy.handler,
+        privateIpParameterArn,
+      }
     );
     serviceControlPolicy.attachToRole(discordInteractions.handler.role!);
 

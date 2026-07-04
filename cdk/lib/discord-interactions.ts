@@ -17,6 +17,10 @@ import { StackConfig } from './types';
 
 interface DiscordInteractionsProps {
   config: Readonly<StackConfig>;
+  /** VPC-internal proxy invoked (synchronously) to reach the task's REST API. */
+  restApiProxy: lambda.IFunction;
+  /** ARN of the SSM parameter holding the running task's private IP. */
+  privateIpParameterArn: string;
 }
 
 /**
@@ -94,6 +98,9 @@ export class DiscordInteractions extends Construct {
         /* The public key is not a secret; it only verifies signatures. */
         DISCORD_PUBLIC_KEY: config.discord.publicKey,
         DISCORD_GUILD_ID: config.discord.guildId,
+        /* Reach the task's REST API through the VPC-internal proxy Lambda. */
+        PROXY_LAMBDA_ARN: props.restApiProxy.functionArn,
+        PRIVATE_IP_SSM_PARAM: constants.PRIVATE_IP_SSM_PARAMETER,
       },
       logGroup: new logs.LogGroup(this, 'Logs', {
         retention: logs.RetentionDays.THREE_DAYS,
@@ -117,6 +124,18 @@ export class DiscordInteractions extends Construct {
             Stack.of(this)
           ),
         ],
+      })
+    );
+
+    // Reach the task's REST API: invoke the proxy Lambda and read the private
+    // IP the watchdog published. Both are scoped to the single resource.
+    props.restApiProxy.grantInvoke(this.handler);
+    this.handler.addToRolePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowReadPrivateIpParameter',
+        effect: iam.Effect.ALLOW,
+        actions: ['ssm:GetParameter'],
+        resources: [props.privateIpParameterArn],
       })
     );
 

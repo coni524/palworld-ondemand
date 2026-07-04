@@ -64,6 +64,17 @@ echo I believe our eni is $ENI
 PUBLICIP=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
 echo "I believe our public IP address is $PUBLICIP"
 
+## Publish the private IP so the (VPC-external) receiver Lambda can hand it to
+## the VPC-internal proxy Lambda that calls the REST API. The private IP changes
+## on every launch, so it is overwritten here on each startup. Same ENI as
+## above, just a different field.
+if [ -n "$PRIVATE_IP_SSM_PARAM" ]
+then
+  PRIVATEIP=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --query 'NetworkInterfaces[0].PrivateIpAddress' --output text)
+  echo "I believe our private IP address is $PRIVATEIP"
+  aws ssm put-parameter --name "$PRIVATE_IP_SSM_PARAM" --type String --overwrite --value "$PRIVATEIP"
+fi
+
 # Wait for the Palworld REST API to respond. A responding REST API means the
 # server process is up and the game port is already bound, so this single check
 # replaces the old "wait for a listening port" step (no netstat/net-tools
