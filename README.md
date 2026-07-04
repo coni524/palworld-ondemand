@@ -64,14 +64,28 @@ aws ssm put-parameter --region ap-northeast-1 \
   --value 'https://discord.com/api/webhooks/...'
 ```
 
-Install pnpm (skip if already installed), then deploy:
+Install pnpm via Corepack, then deploy. AWS CloudShell does not ship a compatible pnpm, so install Node.js 22 with nvm and let Corepack provide the pnpm version this repository pins. nvm and Node.js are installed under your home directory, so they survive across CloudShell sessions:
 
 ```
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-source ~/.bashrc
+# Install nvm + Node.js 22 (Corepack ships with Node; it reads the pinned pnpm version from cdk/package.json)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.5/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install 22
+nvm alias default 22
+corepack enable
+```
 
+```
 pnpm install
 pnpm run build && pnpm run deploy
+```
+
+If Corepack prompts to download pnpm, answer `Y`. Reconnecting to CloudShell later starts a fresh shell, so reload nvm before running pnpm again (the nvm installer also appends these lines to `~/.bashrc`):
+
+```
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 ```
 
 When the deploy finishes, note the **DiscordInteractionsEndpointUrl** value that `palworld-server-stack` outputs.

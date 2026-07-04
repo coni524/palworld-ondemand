@@ -70,14 +70,31 @@ aws ssm put-parameter --region ap-northeast-1 \
   --value 'https://discord.com/api/webhooks/...'
 ```
 
-pnpm（Node.js のパッケージマネージャー）をインストールし、デプロイします。
+pnpm（Node.js のパッケージマネージャー）を Corepack（Node.js に同梱される pnpm/yarn の管理ツール）経由で用意し、デプロイします。
+AWS CloudShell には互換性のある pnpm が含まれないため、nvm（Node.js のバージョン管理ツール）で Node.js 22 を導入し、このリポジトリが固定している pnpm のバージョンを Corepack に用意させます。
+nvm と Node.js はホームディレクトリ配下に入るため、CloudShell のセッションをまたいでも残ります。
 
 ```
-curl -fsSL https://get.pnpm.io/install.sh | sh -
-source ~/.bashrc
+# nvm と Node.js 22 を導入する（Corepack は Node.js に同梱。固定した pnpm のバージョンは cdk/package.json から読む）
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.5/install.sh | bash
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install 22
+nvm alias default 22
+corepack enable
+```
 
+```
 pnpm install
 pnpm run build && pnpm run deploy
+```
+
+Corepack が pnpm のダウンロード可否を尋ねたら `Y` で進めます。
+CloudShell に接続し直すとシェルが初期化されるため、pnpm を使う前に nvm を読み込み直します（nvm のインストーラーがこの記述を `~/.bashrc` にも追記します）。
+
+```
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 ```
 
 デプロイ完了時に `palworld-server-stack` が出力する **DiscordInteractionsEndpointUrl** の値（Lambda Function URL、Lambda に直接付与できる HTTPS エンドポイント）を控えます。
