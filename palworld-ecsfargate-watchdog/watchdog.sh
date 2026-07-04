@@ -64,26 +64,14 @@ echo I believe our eni is $ENI
 PUBLICIP=$(aws ec2 describe-network-interfaces --network-interface-ids $ENI --query 'NetworkInterfaces[0].Association.PublicIp' --output text)
 echo "I believe our public IP address is $PUBLICIP"
 
-# Wait for Palworld server to start
-echo "Determining Palworld based on listening port..."
+# Wait for the Palworld REST API to respond. A responding REST API means the
+# server process is up and the game port is already bound, so this single check
+# replaces the old "wait for a listening port" step (no netstat/net-tools
+# needed). Give up after 10 minutes in case the palworld container failed to
+# start, so a broken task does not keep running -- and billing -- forever.
+echo "Waiting for the Palworld REST API to begin responding..."
 echo "If we are stuck here, the palworld container probably failed to start.  Waiting 10 minutes just in case..."
 COUNTER=0
-while true
-do
-  netstat -aun | grep :$GAMEPORT && break
-  netstat -aun | grep :27015 && break
-  sleep 1
-  COUNTER=$(($COUNTER + 1))
-  if [ $COUNTER -gt 600 ] ## 10 minutes
-  then
-    echo "10 minutes elapsed without a palworld server listening, terminating."
-    zero_service
-  fi
-done
-echo "Detected Palworld"
-
-## Check for the REST API
-echo "Waiting for the Palworld REST API to begin responding..."
 while true
 do
   if curl --silent --fail --max-time 10 -u "admin:$ADMIN_PASSWORD" "http://localhost:$RESTAPIPORT/v1/api/info" > /dev/null
@@ -92,6 +80,12 @@ do
     break
   fi
   sleep 1
+  COUNTER=$(($COUNTER + 1))
+  if [ $COUNTER -gt 600 ] ## 10 minutes
+  then
+    echo "10 minutes elapsed without the REST API responding, terminating."
+    zero_service
+  fi
 done
 
 ## Send startup notification message
