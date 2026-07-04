@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import {
   Stack,
   StackProps,
@@ -227,14 +229,33 @@ export class PalworldStack extends Stack {
       new BillingAlert(this, 'BillingAlert', { config, topic: snsTopic });
     }
 
+    // The watchdog logic is just watchdog.sh. Rather than build and publish a
+    // dedicated image (Docker Hub + a multi-arch GitHub Actions pipeline), read
+    // the script at synth time and run it inline on AWS's official AWS CLI image
+    // -- which is on ECR Public and already bundles bash, curl and jq, the only
+    // tools the script needs -- so nothing has to be installed at container
+    // start. The base ENTRYPOINT (`aws`) is overridden with `bash -c <script>`.
+    const watchdogScript = fs.readFileSync(
+      path.join(
+        __dirname,
+        '..',
+        '..',
+        'palworld-ecsfargate-watchdog',
+        'watchdog.sh'
+      ),
+      'utf-8'
+    );
+
     const watchdogContainer = new ecs.ContainerDefinition(
       this,
       'WatchDogContainer',
       {
         containerName: constants.WATCHDOG_SERVER_CONTAINER_NAME,
         image: ecs.ContainerImage.fromRegistry(
-          'coni524/palworld-ecsfargate-watchdog'
+          'public.ecr.aws/aws-cli/aws-cli:latest'
         ),
+        entryPoint: ['bash', '-c'],
+        command: [watchdogScript],
         essential: true,
         taskDefinition: taskDefinition,
         environment: {

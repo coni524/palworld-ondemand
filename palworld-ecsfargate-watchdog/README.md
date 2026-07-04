@@ -1,21 +1,28 @@
-# Minecraft ECS Fargate Watchdog
-This document is a work in progress but is meant to document the container, its changes, and testing methods
+# Palworld ECS Fargate Watchdog
 
-## Changelog
-- 1.2.0 - added support for bedrock edition with auto server type detection
-- 1.1.0 - switched base image to amazon/aws-cli, added sigterm logging
-- 1.0.3 - added optional sns topic env variable to send server notifications to
-- 1.0.2 - fixed typo in shutdown timeout variable
-- 1.0.1 - added text message when shutting down containers for any reason
-- 1.0.0 - initial release
+`watchdog.sh` scales the ECS service back to `desiredCount: 0` when the Palworld
+server is idle. It is **not** packaged as its own image: the CDK stack reads this
+script at synth time and runs it inline (`bash -c <script>`) on AWS's official
+AWS CLI image (`public.ecr.aws/aws-cli/aws-cli`, on ECR Public), which already
+ships the `bash`, `curl` and `jq` the script needs. Nothing is installed at
+container start. See the `WatchDogContainer` in `cdk/lib/palworld-stack.ts`.
 
-## Tests
-With any changes, the container needs to be able to do the following without error:
-- Detect minecraft edition either Java or Bedrock
-- Automatically shut down after 10 minutes without a connection
-- Detect a connection and not shut down
-- Detect when all players have disconnected and initiate shutdown timer
-- Shut down 20 minutes after last player has disconncted
-- Catch SIGTERM and properly shut down
+## What it does
 
-All of these tests should be performed on Java and Bedrock servers before pushing the `latest` tag.
+- Looks up the task's public IP (ECS task metadata → EC2 ENI) for the startup notification.
+- Waits for the Palworld REST API to respond (which also means the server is up and the
+  game port is bound); gives up after 10 minutes so a broken task does not run forever.
+- Publishes a plain-text `IP:GAMEPORT` startup message to SNS.
+- Polls player count via the REST API (`GET /v1/api/players` on `localhost:8212`, Basic
+  auth with `ADMIN_PASSWORD`).
+- Scales the service to 0 after `STARTUPMIN` (default 10) minutes with no first connection,
+  or `SHUTDOWNMIN` (default 20) minutes after the last player disconnects.
+- Traps SIGTERM (Fargate Spot interruption) and scales to 0 cleanly.
+
+## Behavioral checklist (verify before changing)
+
+- Shuts down after `STARTUPMIN` minutes with no connection.
+- Detects a connection and stays up.
+- Detects when all players have disconnected and starts the shutdown timer.
+- Shuts down `SHUTDOWNMIN` minutes after the last player leaves.
+- Catches SIGTERM and shuts down cleanly.

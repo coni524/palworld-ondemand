@@ -30,7 +30,7 @@ CDK_DEFAULT_ACCOUNT=123456789012 CDK_DEFAULT_REGION=us-east-1 CDK_OUTDIR=/tmp/cd
   pnpm exec ts-node --prefer-ts-exts bin/cdk.ts
 ```
 
-The watchdog container is consumed from Docker Hub (`coni524/palworld-ecsfargate-watchdog`), not built during deploy. A GitHub Actions workflow (`.github/workflows/watchdog-image.yml`) builds a multi-arch (amd64/arm64) image and pushes it to Docker Hub on pushes to `main` that touch `palworld-ecsfargate-watchdog/` (requires `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` repo secrets).
+The watchdog is not a custom image: `palworld-ecsfargate-watchdog/watchdog.sh` is read at synth time (`fs.readFileSync` in `palworld-stack.ts`) and run inline as the container command (`bash -c <script>`) on AWS's official AWS CLI image (`public.ecr.aws/aws-cli/aws-cli`, on ECR Public), which already bundles the `bash`/`curl`/`jq` the script needs. There is no image build, no Docker Hub, and no CI pipeline for the watchdog.
 
 ## Architecture
 
@@ -43,9 +43,9 @@ A single CDK stack, **`palworld-server-stack`** (`cdk/bin/cdk.ts` → `palworld-
 
 The cluster/service/container names live in `constants.ts` — the watchdog and the Discord Lambda locate the ECS service by these names, so they must stay in sync.
 
-**Capacity/architecture:** the task always runs on FARGATE_SPOT with x86_64 (the Palworld server binary is x86_64-only — ARM64 would need Box64 emulation — and Fargate Spot doesn't support ARM64 anyway). The watchdog image on Docker Hub stays multi-arch so older CDK deployments that ran ARM64 keep working.
+**Capacity/architecture:** the task always runs on FARGATE_SPOT with x86_64 (the Palworld server binary is x86_64-only — ARM64 would need Box64 emulation — and Fargate Spot doesn't support ARM64 anyway).
 
-**Watchdog lifecycle** (`palworld-ecsfargate-watchdog/watchdog.sh`): on task start it looks up its own public IP via the ECS task metadata endpoint, waits for the game port and the REST API, publishes a plain-text startup message containing `IP:GAMEPORT` to SNS, then polls player count via the official REST API (`GET /v1/api/players` on localhost:8212, Basic auth with `ADMIN_PASSWORD`) — scaling the service to 0 after `STARTUPMIN` (default 10) minutes with no first connection, or `SHUTDOWNMIN` (default 20) minutes after the last player leaves. It also traps SIGTERM (Fargate Spot interruption) and scales to 0 cleanly.
+**Watchdog lifecycle** (`palworld-ecsfargate-watchdog/watchdog.sh`): on task start it looks up its own public IP via the ECS task metadata endpoint, waits for the REST API to respond (which also means the game server is up, with a 10-minute timeout that scales back to 0 if the server never comes up), publishes a plain-text startup message containing `IP:GAMEPORT` to SNS, then polls player count via the official REST API (`GET /v1/api/players` on localhost:8212, Basic auth with `ADMIN_PASSWORD`) — scaling the service to 0 after `STARTUPMIN` (default 10) minutes with no first connection, or `SHUTDOWNMIN` (default 20) minutes after the last player leaves. It also traps SIGTERM (Fargate Spot interruption) and scales to 0 cleanly.
 
 **Configuration** flows from `cdk/.env` through `config.ts` (`resolveConfig()`; real environment variables take precedence over `.env`). All options are documented in `cdk/README.md`, including the valid Fargate CPU/memory combinations.
 
